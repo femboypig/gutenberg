@@ -22,6 +22,7 @@ add_library(gutenberg_core
     core/src/java_io.cpp
     core/src/java_network.cpp
     core/src/java_json.cpp
+    core/src/java_reflection.cpp
     core/src/package.cpp
     core/src/android.cpp
     core/src/android_views.cpp

@@ -51,6 +51,12 @@ public final class Program {
         int[] copy = new int[5];
         System.arraycopy(values, 0, copy, 0, 5);
         require(copy[4] == 11, "arraycopy");
+        int[][] grid = (int[][]) java.lang.reflect.Array.newInstance(Integer.TYPE, new int[]{3, 4});
+        grid[1][2] = 17;
+        require(grid.length == 3 && grid[0].length == 4 && grid[1][2] == 17, "reflective multidimensional arrays");
+        require(java.lang.reflect.Array.getLength(grid) == 3 && grid.getClass().getComponentType() == int[].class,
+                "array class metadata");
+        require(int.class.isPrimitive() && "int".equals(int.class.getName()), "primitive class metadata");
         Parent parent = new Child(6);
         require(parent.read() == 7, "virtual dispatch");
         require(((Operation) parent).apply(3) == 21, "interface dispatch");

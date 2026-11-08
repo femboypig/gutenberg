@@ -53,3 +53,38 @@ TEST(java_clone_requires_cloneable_and_accounts_array_storage) {
     const Value arrayArgs[]{array};
     test::rejects([&] { (void)vm.invoke("Ljava/lang/Object;", "clone", "()Ljava/lang/Object;", arrayArgs); });
 }
+
+TEST(reflection_creates_primitive_matrices_and_preserves_class_identity) {
+    Runtime vm(RuntimeLimits{10000, 100, 32, 100});
+    installJavaRuntime(vm);
+    const auto integer = vm.getStatic({"Ljava/lang/Integer;", "TYPE", "Ljava/lang/Class;"});
+    const auto dimensions = vm.array("[I", 2);
+    vm.object(dimensions).elements = {Value::integer(3), Value::integer(4)};
+    const Value args[]{integer, dimensions};
+    const auto matrix = vm.invoke("Ljava/lang/reflect/Array;", "newInstance",
+                                  "(Ljava/lang/Class;[I)Ljava/lang/Object;", args, InvokeKind::static_);
+    CHECK(vm.object(matrix).type == "[[I");
+    CHECK(vm.object(matrix).elements.size() == 3);
+    CHECK(vm.object(vm.object(matrix).elements[0]).elements.size() == 4);
+    const Value classArgs[]{vm.classObject("[[I")};
+    CHECK(vm.invoke("Ljava/lang/Class;", "getComponentType", "()Ljava/lang/Class;", classArgs) ==
+          vm.classObject("[I"));
+    const Value nameArgs[]{integer};
+    CHECK(vm.text(vm.invoke("Ljava/lang/Class;", "getName", "()Ljava/lang/String;", nameArgs)) == "int");
+    const Value arrayName[]{vm.string("[[I")};
+    CHECK(vm.invoke("Ljava/lang/Class;", "forName", "(Ljava/lang/String;)Ljava/lang/Class;", arrayName,
+                    InvokeKind::static_) == vm.classObject("[[I"));
+    vm.object(dimensions).elements = {Value::integer(100), Value::integer(100)};
+    test::rejects([&] {
+        (void)vm.invoke("Ljava/lang/reflect/Array;", "newInstance", "(Ljava/lang/Class;[I)Ljava/lang/Object;",
+                        args, InvokeKind::static_);
+    });
+    vm.object(dimensions).elements = {Value::integer(0), Value::integer(-1)};
+    try {
+        (void)vm.invoke("Ljava/lang/reflect/Array;", "newInstance", "(Ljava/lang/Class;[I)Ljava/lang/Object;",
+                        args, InvokeKind::static_);
+        CHECK(false);
+    } catch (const GuestException& error) {
+        CHECK(vm.object(error.value).type == "Ljava/lang/NegativeArraySizeException;");
+    }
+}

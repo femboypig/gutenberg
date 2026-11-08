@@ -133,27 +133,6 @@ void installJavaRuntime(Runtime& vm, JavaServices services) {
         r.object(result) = copy;
         return result;
     });
-    vm.bind("Ljava/lang/Class;", "getName", "()Ljava/lang/String;", [](Runtime& r, Arguments a) {
-        auto name = r.text(a[0]);
-        if (name.size() > 2 && name[0] == 'L')
-            name = name.substr(1, name.size() - 2);
-        std::replace(name.begin(), name.end(), '/', '.');
-        return r.string(name);
-    });
-    vm.bind("Ljava/lang/Class;", "isInstance", "(Ljava/lang/Object;)Z", [](Runtime& r, Arguments a) {
-        return Value::integer(!a[1].isNull() && r.assignable(r.object(a[1]).type, r.text(a[0])));
-    });
-    vm.bind("Ljava/lang/Class;", "forName", "(Ljava/lang/String;)Ljava/lang/Class;",
-            [](Runtime& r, Arguments a) {
-                auto name = r.text(a[0]);
-                std::replace(name.begin(), name.end(), '.', '/');
-                name = "L" + name + ";";
-                if (!r.hasClass(name))
-                    r.raise("Ljava/lang/ClassNotFoundException;", name);
-                r.initialize(name);
-                return r.classObject(name);
-            });
-
     const std::string str = "Ljava/lang/String;";
     vm.bind(str, "<init>", "()V", nothing);
     vm.bind(str, "<init>", "(Ljava/lang/String;)V", [](Runtime& r, Arguments a) {
@@ -435,6 +414,7 @@ void installJavaRuntime(Runtime& vm, JavaServices services) {
     }
     installJavaCollections(vm);
     installJavaNumbers(vm);
+    installJavaReflection(vm);
     installJavaJson(vm);
     installJavaIo(vm, services);
     installJavaNetwork(vm, std::move(services));
