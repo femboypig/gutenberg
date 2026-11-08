@@ -1,0 +1,8 @@
+/build*/
+/.cache/
+/DerivedData/
+*.ipa
+*.apk
+*.dex
+*.xcuserstate
+.DS_Store
