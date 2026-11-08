@@ -198,10 +198,10 @@ Value Runtime::execute(const DexFile& dex, const Code& code, Arguments arguments
                 putWide(aa, std::uint64_t(word(start + 1)) << 48);
                 break;
             case 0x1a:
-                reg(aa) = string(dex.string(word(start + 1)), true);
+                reg(aa) = string(dex.string16(word(start + 1)), true);
                 break;
             case 0x1b:
-                reg(aa) = string(dex.string(u32(start + 1)), true);
+                reg(aa) = string(dex.string16(u32(start + 1)), true);
                 break;
             case 0x1c:
                 reg(aa) = classObject(dex.type(word(start + 1)));

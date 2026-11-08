@@ -109,4 +109,67 @@ std::string utf8(std::u16string_view text) {
     return result;
 }
 
+std::string utf8Replacing(std::u16string_view text, char16_t replacement) {
+    std::u16string clean;
+    clean.reserve(text.size());
+    for (std::size_t n = 0; n < text.size(); ++n) {
+        const auto c = text[n];
+        if (c >= 0xd800 && c <= 0xdbff) {
+            if (n + 1 < text.size() && text[n + 1] >= 0xdc00 && text[n + 1] <= 0xdfff) {
+                clean += c;
+                clean += text[++n];
+            } else
+                clean += replacement;
+        } else if (c >= 0xdc00 && c <= 0xdfff)
+            clean += replacement;
+        else
+            clean += c;
+    }
+    return utf8(clean);
+}
+
+std::u16string utf16Replacing(std::string_view text) {
+    std::u16string result;
+    for (std::size_t at = 0; at < text.size();) {
+        const auto first = static_cast<std::uint8_t>(text[at]);
+        if (first < 0x80) {
+            result += static_cast<char16_t>(first);
+            ++at;
+            continue;
+        }
+        const unsigned length = first >= 0xc2 && first <= 0xdf   ? 2
+                                : first >= 0xe0 && first <= 0xef ? 3
+                                : first >= 0xf0 && first <= 0xf4 ? 4
+                                                                 : 0;
+        if (!length) {
+            result += u'\ufffd';
+            ++at;
+            continue;
+        }
+        std::uint32_t codepoint = first & (length == 2 ? 0x1f : length == 3 ? 0xf : 7);
+        unsigned consumed = 1;
+        for (; consumed < length && at + consumed < text.size(); ++consumed) {
+            const auto c = static_cast<std::uint8_t>(text[at + consumed]);
+            if ((c & 0xc0) != 0x80 ||
+                (consumed == 1 && ((first == 0xe0 && c < 0xa0) || (first == 0xed && c >= 0xa0) ||
+                                   (first == 0xf0 && c < 0x90) || (first == 0xf4 && c >= 0x90))))
+                break;
+            codepoint = (codepoint << 6) | (c & 0x3f);
+        }
+        at += consumed;
+        if (consumed != length) {
+            result += u'\ufffd';
+            continue;
+        }
+        if (codepoint <= 0xffff)
+            result += static_cast<char16_t>(codepoint);
+        else {
+            codepoint -= 0x10000;
+            result += static_cast<char16_t>(0xd800 | (codepoint >> 10));
+            result += static_cast<char16_t>(0xdc00 | (codepoint & 0x3ff));
+        }
+    }
+    return result;
+}
+
 } // namespace gutenberg

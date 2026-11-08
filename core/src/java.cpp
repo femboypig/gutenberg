@@ -166,7 +166,7 @@ void installJavaRuntime(Runtime& vm) {
         std::string text;
         for (auto value : r.object(a[1]).elements)
             text += static_cast<char>(value.bits & 0xff);
-        r.object(a[0]).text = utf16(text);
+        r.object(a[0]).text = utf16Replacing(text);
         return Value{};
     });
     vm.bind(str, "toString", "()Ljava/lang/String;", [](Runtime&, Arguments a) { return a[0]; });
@@ -230,7 +230,7 @@ void installJavaRuntime(Runtime& vm) {
         return result;
     });
     vm.bind(str, "getBytes", "()[B", [](Runtime& r, Arguments a) {
-        const auto text = r.text(a[0]);
+        const auto text = utf8Replacing(r.object(a[0]).text, u'?');
         auto result = r.array("[B", static_cast<std::int32_t>(text.size()));
         for (std::size_t n = 0; n < text.size(); ++n)
             r.object(result).elements[n] =

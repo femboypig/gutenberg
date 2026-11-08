@@ -136,3 +136,14 @@ TEST(runtime_bounds_total_array_storage) {
     (void)vm.array("[I", 6);
     test::rejects([&] { (void)vm.array("[I", 6); });
 }
+
+TEST(runtime_preserves_unpaired_java_surrogates) {
+    Runtime vm;
+    const auto first = vm.string(std::u16string{0xd800}, true);
+    CHECK(first == vm.string(std::u16string{0xd800}, true));
+    CHECK(!(first == vm.string(std::u16string{0xd801}, true)));
+    CHECK(vm.object(first).text.front() == 0xd800);
+    CHECK(vm.text(first) == "�");
+    CHECK(utf16Replacing(std::string("\xe1\x80", 2)) == u"�");
+    CHECK(utf16Replacing(std::string("\xe0\x80\x80", 3)) == u"���");
+}

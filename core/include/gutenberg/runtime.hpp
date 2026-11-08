@@ -116,7 +116,7 @@ class Runtime {
     std::unordered_map<std::string, ClassInfo> classes_;
     std::unordered_map<std::string, NativeMethod> natives_;
     std::unordered_map<std::string, Value> statics_;
-    std::unordered_map<std::string, Value> interns_;
+    std::unordered_map<std::u16string, Value> interns_;
     std::unordered_map<std::string, Value> mirrors_;
     std::vector<std::unique_ptr<Object>> heap_;
     std::atomic<bool> cancelled_ = false;

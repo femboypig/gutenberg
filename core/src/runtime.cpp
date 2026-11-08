@@ -287,9 +287,9 @@ Value Runtime::string(std::string_view text, bool intern) {
     return string(utf16(text), intern);
 }
 Value Runtime::string(std::u16string text, bool intern) {
-    std::string key;
+    std::u16string key;
     if (intern) {
-        key = utf8(text);
+        key = text;
         if (const auto it = interns_.find(key); it != interns_.end())
             return it->second;
     }
@@ -300,7 +300,7 @@ Value Runtime::string(std::u16string text, bool intern) {
     return result;
 }
 std::string Runtime::text(Value value) const {
-    return value.isNull() ? "null" : utf8(object(value).text);
+    return value.isNull() ? "null" : utf8Replacing(object(value).text);
 }
 Value Runtime::classObject(std::string type) {
     if (const auto it = mirrors_.find(type); it != mirrors_.end())
@@ -326,7 +326,7 @@ const Object& Runtime::object(Value value) const {
 
 Value Runtime::initialValue(const DexFile& dex, const EncodedValue& value) {
     if (value.type == 0x17)
-        return string(dex.string(static_cast<std::uint32_t>(value.bits)), true);
+        return string(dex.string16(static_cast<std::uint32_t>(value.bits)), true);
     if (value.type == 0x18)
         return classObject(dex.type(static_cast<std::uint32_t>(value.bits)));
     if (value.type == 0x1c) {

@@ -73,6 +73,7 @@ class DexFile {
   public:
     explicit DexFile(Bytes bytes);
     [[nodiscard]] const std::string& string(std::uint32_t index) const;
+    [[nodiscard]] const std::u16string& string16(std::uint32_t index) const;
     [[nodiscard]] const std::string& type(std::uint32_t index) const;
     [[nodiscard]] const MethodRef& method(std::uint32_t index) const;
     [[nodiscard]] const FieldRef& field(std::uint32_t index) const;
@@ -95,6 +96,7 @@ class DexFile {
     Bytes bytes_;
     std::string version_;
     std::vector<std::string> strings_;
+    std::vector<std::u16string> strings16_;
     std::vector<std::string> types_;
     std::vector<MethodRef> methods_;
     std::vector<FieldRef> fields_;

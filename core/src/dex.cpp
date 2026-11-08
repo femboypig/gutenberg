@@ -12,7 +12,7 @@ template <class T> const T& checked(const std::vector<T>& items, std::uint32_t i
         throw Error(ErrorCode::malformed_dex, std::string(kind) + " index out of range");
     return items[index];
 }
-std::string readString(const ByteView& data, std::size_t cursor) {
+std::u16string readString(const ByteView& data, std::size_t cursor) {
     const auto length = data.uleb(cursor);
     if (length > data.size() - cursor)
         throw Error(ErrorCode::malformed_dex, "invalid dex string length");
@@ -46,7 +46,7 @@ std::string readString(const ByteView& data, std::size_t cursor) {
     }
     if (data.u8(cursor))
         throw Error(ErrorCode::malformed_dex, "missing dex string terminator");
-    return utf8(chars);
+    return chars;
 }
 } // namespace
 
@@ -84,8 +84,10 @@ DexFile::DexFile(Bytes bytes) : bytes_(std::move(bytes)) {
     };
     const auto [stringCount, stringOffset] = table(56, 4);
     strings_.reserve(stringCount);
-    for (std::uint32_t i = 0; i < stringCount; ++i)
-        strings_.push_back(readString(data, data.u32(stringOffset + std::size_t(i) * 4)));
+    for (std::uint32_t i = 0; i < stringCount; ++i) {
+        strings16_.push_back(readString(data, data.u32(stringOffset + std::size_t(i) * 4)));
+        strings_.push_back(utf8Replacing(strings16_.back()));
+    }
     const auto [typeCount, typeOffset] = table(64, 4);
     for (std::uint32_t i = 0; i < typeCount; ++i)
         types_.push_back(string(data.u32(typeOffset + std::size_t(i) * 4)));
@@ -200,6 +202,9 @@ DexFile::DexFile(Bytes bytes) : bytes_(std::move(bytes)) {
 
 const std::string& DexFile::string(std::uint32_t index) const {
     return checked(strings_, index, "string");
+}
+const std::u16string& DexFile::string16(std::uint32_t index) const {
+    return checked(strings16_, index, "string");
 }
 const std::string& DexFile::type(std::uint32_t index) const {
     return checked(types_, index, "type");
