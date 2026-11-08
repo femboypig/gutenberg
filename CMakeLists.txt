@@ -29,6 +29,7 @@ add_library(gutenberg_core
     core/src/android_resources.cpp
     core/src/layout.cpp
     core/src/graphics.cpp
+    core/src/graphics_bitmap.cpp
     core/src/android_services.cpp
     core/src/jit.cpp
     core/src/jit_memory.cpp

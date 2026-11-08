@@ -34,8 +34,10 @@ enum class DrawOperation {
     rotate,
     skew,
     clipRect,
-    clipPath
+    clipPath,
+    bitmap
 };
+struct BitmapImage;
 struct DrawCommand {
     DrawCommand(DrawOperation operation) : operation(operation) {}
     DrawOperation operation;
@@ -43,16 +45,26 @@ struct DrawCommand {
     Paint paint;
     std::vector<PathElement> path;
     std::u16string text;
+    std::shared_ptr<const BitmapImage> image;
     bool evenOdd = false;
 };
 struct DisplayList {
     std::vector<DrawCommand> commands;
     std::size_t bytes = 0;
+    std::size_t replayCost = 0;
+    unsigned depth = 0;
+};
+struct BitmapImage {
+    std::int32_t width = 0, height = 0;
+    std::shared_ptr<const Bytes> encoded;
+    std::shared_ptr<const DisplayList> drawing;
 };
 
 void installGraphics(Runtime& runtime);
 [[nodiscard]] Value createRecordingCanvas(Runtime& runtime);
 void beginRecording(Runtime& runtime, Value canvas, float width, float height);
 [[nodiscard]] std::shared_ptr<const DisplayList> finishRecording(Runtime& runtime, Value canvas);
+[[nodiscard]] Value decodeBitmap(Runtime& runtime, Bytes bytes);
+[[nodiscard]] std::shared_ptr<const BitmapImage> bitmapSnapshot(Runtime& runtime, Value bitmap);
 
 } // namespace gutenberg

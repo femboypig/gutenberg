@@ -1,34 +1,11 @@
 #include "gutenberg/graphics.hpp"
+#include "graphics_internal.hpp"
 #include "gutenberg/java.hpp"
 #include <algorithm>
 #include <cmath>
 #include <utility>
 
-namespace gutenberg {
-namespace {
-constexpr auto paintType = "Landroid/graphics/Paint;";
-constexpr auto pathType = "Landroid/graphics/Path;";
-constexpr auto canvasType = "Landroid/graphics/Canvas;";
-constexpr std::size_t byteLimit = 16 * 1024 * 1024, elementLimit = 100000;
-struct PaintState final : NativeObject {
-    Paint value;
-};
-struct PathState final : NativeObject {
-    std::vector<PathElement> elements;
-    float x = 0, y = 0, startX = 0, startY = 0;
-    bool evenOdd = false;
-};
-struct CanvasState final : NativeObject {
-    std::shared_ptr<DisplayList> display;
-    unsigned saves = 1;
-    float width = 0, height = 0;
-};
-template <class T> T& state(Runtime& vm, Value value) {
-    const auto result = std::dynamic_pointer_cast<T>(vm.object(value).native);
-    if (!result)
-        vm.raise("Ljava/lang/IllegalStateException;", "graphics object is not initialized");
-    return *result;
-}
+namespace gutenberg::graphics {
 float finite(Runtime& vm, float value) {
     if (!std::isfinite(value) || std::abs(value) > 1e9f)
         vm.raise("Ljava/lang/IllegalArgumentException;", "invalid graphics coordinate");
@@ -38,15 +15,35 @@ void record(Runtime& vm, Value canvas, DrawCommand command) {
     auto& data = state<CanvasState>(vm, canvas);
     if (!data.display)
         vm.raise("Ljava/lang/IllegalStateException;", "canvas is outside its drawing callback");
+    if (!data.target.isNull()) {
+        auto& target = state<BitmapState>(vm, data.target);
+        if (target.recycled)
+            vm.raise("Ljava/lang/IllegalStateException;", "bitmap has been recycled");
+        target.snapshot.reset();
+        if (data.display.use_count() > 2)
+            data.display = std::make_shared<DisplayList>(*data.display);
+        target.drawing = data.display;
+    }
     for (const auto coordinate : command.coordinates)
         (void)finite(vm, coordinate);
     const auto bytes = sizeof(DrawCommand) + command.text.size() * sizeof(char16_t) +
                        command.path.size() * sizeof(PathElement);
     if (bytes > byteLimit - data.display->bytes || data.display->commands.size() >= elementLimit)
         throw Error(ErrorCode::limit_exceeded, "canvas display list limit exceeded");
+    const auto cost = 1 + (command.image && command.image->drawing ? command.image->drawing->replayCost : 0);
+    const auto depth = command.image && command.image->drawing ? command.image->drawing->depth + 1 : 0;
+    if (cost > 2000000 - data.display->replayCost || depth > 64)
+        throw Error(ErrorCode::limit_exceeded, "nested bitmap drawing limit exceeded");
     data.display->bytes += bytes;
+    data.display->replayCost += cost;
+    data.display->depth = std::max(data.display->depth, depth);
     data.display->commands.push_back(std::move(command));
 }
+} // namespace gutenberg::graphics
+
+namespace gutenberg {
+using namespace graphics;
+namespace {
 void pathElement(Runtime& vm, PathState& path, PathVerb verb, std::array<float, 6> coordinates = {}) {
     for (const auto coordinate : coordinates)
         (void)finite(vm, coordinate);
@@ -518,6 +515,7 @@ void installGraphics(Runtime& vm) {
     installPaint(vm);
     installPath(vm);
     installCanvas(vm);
+    installBitmaps(vm);
 }
 Value createRecordingCanvas(Runtime& vm) {
     const auto canvas = vm.allocate(canvasType);
