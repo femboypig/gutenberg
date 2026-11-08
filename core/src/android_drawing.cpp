@@ -7,6 +7,22 @@ void AndroidSession::installDrawing() {
     installGraphics(vm_);
     const std::string base = "Landroid/view/View;", event = "Landroid/view/MotionEvent;";
     vm_.defineClass(event);
+    vm_.defineClass("Landroid/view/KeyEvent;");
+    for (const auto* owner : {"Landroid/view/View;", "Landroid/app/Activity;"}) {
+        vm_.bind(owner, "onKeyDown", "(ILandroid/view/KeyEvent;)Z", [this, owner](Runtime&, Arguments a) {
+            if (std::string_view(owner) == "Landroid/app/Activity;" && a[1].i32() == 4) {
+                back();
+                return Value::integer(1);
+            }
+            return Value::integer(0);
+        });
+        vm_.bind(owner, "onKeyUp", "(ILandroid/view/KeyEvent;)Z",
+                 [](Runtime&, Arguments) { return Value::integer(0); });
+    }
+    for (const std::string name : {"getKeyCode", "getAction", "getRepeatCount"})
+        vm_.bind("Landroid/view/KeyEvent;", name, "()I", [name](Runtime& r, Arguments a) {
+            return name == "getRepeatCount" ? Value::integer(0) : r.object(a[0]).fields[name];
+        });
     vm_.defineClass("Landroid/view/View$OnTouchListener;");
     for (const std::string name : {"setFocusable", "setFocusableInTouchMode"})
         vm_.bind(base, name, "(Z)V", [this, name](Runtime& r, Arguments a) {
@@ -196,6 +212,46 @@ void AndroidSession::touch(std::uint64_t handle, int action, float x, float y, f
     if (!consumed) {
         const Value args[]{Value::object(handle), motionEvent_};
         (void)vm_.invoke("Landroid/view/View;", "onTouchEvent", "(Landroid/view/MotionEvent;)Z", args);
+    }
+    publish();
+}
+
+void AndroidSession::key(int code, bool down) {
+    if (code < 0 || code > 1000)
+        throw Error(ErrorCode::verification, "invalid key code");
+    if (keyEvent_.isNull())
+        keyEvent_ = vm_.allocate("Landroid/view/KeyEvent;");
+    vm_.object(keyEvent_).fields["getKeyCode"] = Value::integer(code);
+    vm_.object(keyEvent_).fields["getAction"] = Value::integer(down ? 0 : 1);
+    auto target = focusedView_;
+    if (!target && scene_.root) {
+        std::vector<std::uint64_t> pending{scene_.root};
+        std::unordered_set<std::uint64_t> visited;
+        while (!pending.empty()) {
+            const auto current = pending.back();
+            pending.pop_back();
+            if (!visited.insert(current).second)
+                continue;
+            const auto& node = scene_.views.at(current);
+            if (!node.visible || !node.enabled)
+                continue;
+            if (vm_.object(Value::object(current)).fields["setFocusable"].bits) {
+                target = current;
+                break;
+            }
+            pending.insert(pending.end(), node.children.rbegin(), node.children.rend());
+        }
+        focusedView_ = target;
+    }
+    const auto name = down ? "onKeyDown" : "onKeyUp";
+    bool consumed = false;
+    if (target) {
+        const Value args[]{Value::object(target), Value::integer(code), keyEvent_};
+        consumed = vm_.invoke("Landroid/view/View;", name, "(ILandroid/view/KeyEvent;)Z", args).bits != 0;
+    }
+    if (!consumed) {
+        const Value args[]{activity_, Value::integer(code), keyEvent_};
+        (void)vm_.invoke("Landroid/app/Activity;", name, "(ILandroid/view/KeyEvent;)Z", args);
     }
     publish();
 }

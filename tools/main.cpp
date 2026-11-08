@@ -2,9 +2,11 @@
 #include "gutenberg/dex.hpp"
 #include "gutenberg/java.hpp"
 #include "gutenberg/jit.hpp"
+#include "gutenberg/layout.hpp"
 #include <charconv>
 #include <iomanip>
 #include <iostream>
+#include <thread>
 
 using namespace gutenberg;
 
@@ -29,17 +31,45 @@ int main(int argc, char** argv) {
             host.toast = [](std::string_view message) { std::cout << "toast: " << message << '\n'; };
             host.present = [](const Scene& scene) {
                 std::cout << "scene: " << std::quoted(scene.title) << '\n';
-                for (const auto& [handle, node] : scene.views)
+                for (const auto& [handle, node] : scene.views) {
                     std::cout << "view " << handle << ' ' << node.androidId << ' ' << node.kind << ' '
                               << std::quoted(node.text) << '\n';
+                    if (node.drawing)
+                        std::cout << "drawing " << handle << " commands: " << node.drawing->commands.size()
+                                  << " work: " << node.drawing->replayCost << '\n';
+                }
             };
             AndroidSession session(package, host);
             session.launch();
+            const auto layout =
+                layoutScene(session.scene(), {host.screenWidth, host.screenHeight},
+                            [](const ViewNode& node, Size available) {
+                                return Size{std::min(available.width, static_cast<float>(node.text.size()) *
+                                                                          node.textSize * 0.5f),
+                                            node.text.empty() ? 0 : node.textSize * 1.2f};
+                            });
+            std::vector<ViewSize> sizes;
+            for (const auto& [handle, box] : layout)
+                sizes.push_back({handle, box.frame.width, box.frame.height});
+            session.resizeViews(sizes);
             for (int n = 3; n < argc; ++n) {
                 const std::string option(argv[n]);
                 if (option == "--tick")
                     session.pumpTasks();
-                else if (option == "--click" && n + 1 < argc) {
+                else if ((option == "--key" || option == "--wait") && n + 1 < argc) {
+                    const std::string_view text(argv[++n]);
+                    int value = 0;
+                    const auto [end, error] = std::from_chars(text.data(), text.data() + text.size(), value);
+                    if (error != std::errc{} || end != text.data() + text.size() || value < 0 || value > 5000)
+                        throw Error(ErrorCode::verification, "invalid key or wait value");
+                    if (option == "--key") {
+                        session.key(value, true);
+                        session.key(value, false);
+                    } else {
+                        std::this_thread::sleep_for(std::chrono::milliseconds(value));
+                        session.pumpTasks();
+                    }
+                } else if (option == "--click" && n + 1 < argc) {
                     const std::string text(argv[++n]);
                     std::uint64_t target = 0;
                     for (const auto& [handle, node] : session.scene().views)

@@ -69,6 +69,7 @@ class AndroidSession {
     void changeChecked(std::uint64_t handle, bool checked);
     void resizeViews(const std::vector<ViewSize>& sizes);
     void touch(std::uint64_t handle, int action, float x, float y, float pressure, std::int64_t timeMs);
+    void key(int code, bool down);
     void back();
     void pumpTasks();
     void cancel() noexcept {
@@ -110,6 +111,7 @@ class AndroidSession {
     std::map<std::uint64_t, Value> canvases_;
     std::unordered_set<std::uint64_t> dirtyViews_;
     Value motionEvent_;
+    Value keyEvent_;
     std::uint64_t focusedView_ = 0;
     bool drawing_ = false;
     struct Task {
