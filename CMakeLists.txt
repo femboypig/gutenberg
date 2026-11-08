@@ -15,6 +15,7 @@ add_library(gutenberg_core
     core/src/runtime.cpp
     core/src/interpreter.cpp
     core/src/java.cpp
+    core/src/package.cpp
 )
 target_include_directories(gutenberg_core PUBLIC core/include)
 target_link_libraries(gutenberg_core PUBLIC ZLIB::ZLIB)
