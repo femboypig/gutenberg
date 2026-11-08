@@ -136,6 +136,10 @@ using namespace gutenberg;
 - (BOOL)canBecomeFirstResponder {
     return YES;
 }
+- (void)viewDidAppear:(BOOL)animated {
+    [super viewDidAppear:animated];
+    [self becomeFirstResponder];
+}
 - (NSArray<UIKeyCommand*>*)keyCommands {
     NSMutableArray<UIKeyCommand*>* commands = [NSMutableArray array];
     for (NSString* input in
