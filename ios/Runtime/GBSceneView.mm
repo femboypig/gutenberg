@@ -179,7 +179,7 @@ bool isKind(const ViewNode& node, std::string_view name) {
     try {
         auto layout = layoutScene(
             _scene, {static_cast<float>(self.bounds.size.width), static_cast<float>(self.bounds.size.height)},
-            [self](const ViewNode& node, Size maximum) {
+            [self](const ViewNode& node, gutenberg::Size maximum) {
                 UIView* view = self->_views[@(node.handle)];
                 CGSize limit = CGSizeMake(std::isfinite(maximum.width) ? maximum.width : CGFLOAT_MAX,
                                           std::isfinite(maximum.height) ? maximum.height : CGFLOAT_MAX);
@@ -192,7 +192,7 @@ bool isKind(const ViewNode& node, std::string_view name) {
                     size.height = MAX(44, size.height);
                 if ([view isKindOfClass:UITextField.class])
                     size.width = MAX(64, size.width);
-                return Size{static_cast<float>(size.width), static_cast<float>(size.height)};
+                return gutenberg::Size{static_cast<float>(size.width), static_cast<float>(size.height)};
             });
         for (const auto& [handle, box] : layout) {
             UIView* view = _views[@(handle)];
