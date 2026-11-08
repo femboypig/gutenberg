@@ -28,6 +28,29 @@ if(GUTENBERG_SANITIZE)
     target_link_options(gutenberg_core PUBLIC -fsanitize=address,undefined)
 endif()
 
+if(CMAKE_SYSTEM_NAME STREQUAL "iOS")
+    enable_language(OBJCXX)
+    add_executable(Gutenberg MACOSX_BUNDLE
+        ios/App/main.mm
+        ios/App/GBAppDelegate.mm
+        ios/Library/GBLibraryStore.mm
+        ios/Library/GBLibraryController.mm
+        ios/Runtime/GBSceneView.mm
+        ios/Runtime/GBRuntimeController.mm
+    )
+    target_link_libraries(Gutenberg PRIVATE gutenberg_core "-framework UIKit" "-framework Foundation" "-framework UniformTypeIdentifiers")
+    target_compile_options(Gutenberg PRIVATE -fobjc-arc -Wall -Wextra)
+    set_target_properties(Gutenberg PROPERTIES
+        MACOSX_BUNDLE_INFO_PLIST "${CMAKE_CURRENT_SOURCE_DIR}/ios/Info.plist"
+        XCODE_ATTRIBUTE_PRODUCT_BUNDLE_IDENTIFIER "app.gutenberg.ios"
+        XCODE_ATTRIBUTE_TARGETED_DEVICE_FAMILY "1,2"
+        XCODE_ATTRIBUTE_CLANG_ENABLE_OBJC_ARC "YES"
+        XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED "NO"
+        XCODE_ATTRIBUTE_ENABLE_USER_SCRIPT_SANDBOXING "YES"
+        XCODE_ATTRIBUTE_GENERATE_INFOPLIST_FILE "NO"
+    )
+endif()
+
 if(NOT CMAKE_SYSTEM_NAME STREQUAL "iOS")
     add_executable(gutenberg tools/main.cpp)
     target_link_libraries(gutenberg PRIVATE gutenberg_core)
