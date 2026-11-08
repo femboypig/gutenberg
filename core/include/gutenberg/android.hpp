@@ -23,6 +23,7 @@ struct ViewNode {
     Insets padding;
     std::int32_t orientation = 0;
     std::int32_t gravity = 0;
+    std::int32_t layoutGravity = -1;
     bool enabled = true, visible = true, checked = false;
     std::vector<std::uint64_t> children;
 };

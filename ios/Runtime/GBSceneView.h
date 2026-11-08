@@ -8,6 +8,7 @@ NS_ASSUME_NONNULL_BEGIN
 @property(nonatomic, copy, nullable) void (^onClick)(uint64_t handle);
 @property(nonatomic, copy, nullable) void (^onTextChanged)(uint64_t handle, NSString* text);
 @property(nonatomic, copy, nullable) void (^onCheckedChanged)(uint64_t handle, BOOL checked);
+@property(nonatomic, copy, nullable) void (^onLayoutError)(NSString* message);
 #ifdef __cplusplus
 - (void)displayScene:(const gutenberg::Scene&)scene;
 #endif

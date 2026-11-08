@@ -22,6 +22,7 @@ add_library(gutenberg_core
     core/src/package.cpp
     core/src/android.cpp
     core/src/android_views.cpp
+    core/src/layout.cpp
     core/src/android_services.cpp
     core/src/jit.cpp
     core/src/jit_memory.cpp
@@ -90,7 +91,7 @@ if(NOT CMAKE_SYSTEM_NAME STREQUAL "iOS")
     if(BUILD_TESTING)
         add_executable(apk_tests tests/apk_tests.cpp)
         target_link_libraries(apk_tests PRIVATE gutenberg_core)
-        add_executable(core_tests tests/core_tests.cpp tests/resource_tests.cpp tests/dex_tests.cpp tests/runtime_tests.cpp tests/java_tests.cpp tests/jit_tests.cpp tests/collection_tests.cpp tests/filesystem_tests.cpp tests/io_tests.cpp)
+        add_executable(core_tests tests/core_tests.cpp tests/resource_tests.cpp tests/dex_tests.cpp tests/runtime_tests.cpp tests/java_tests.cpp tests/jit_tests.cpp tests/collection_tests.cpp tests/filesystem_tests.cpp tests/io_tests.cpp tests/layout_tests.cpp)
         target_link_libraries(core_tests PRIVATE gutenberg_core)
         add_test(NAME core_tests COMMAND core_tests)
     endif()

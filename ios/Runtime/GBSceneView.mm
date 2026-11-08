@@ -1,5 +1,7 @@
 #import "GBSceneView.h"
+#include "gutenberg/layout.hpp"
 #include <algorithm>
+#include <cmath>
 #include <set>
 
 using namespace gutenberg;
@@ -17,10 +19,25 @@ NSString* text(const std::string& value) {
 bool isKind(const ViewNode& node, std::string_view name) {
     return node.kind == "Landroid/widget/" + std::string(name) + ";";
 }
-bool isLinear(const ViewNode& node) {
-    return isKind(node, "LinearLayout") || isKind(node, "TableLayout") || isKind(node, "TableRow");
-}
 } // namespace
+
+@interface GBTextLabel : UILabel
+@property(nonatomic) UIEdgeInsets textInsets;
+@property(nonatomic) NSInteger verticalGravity;
+@end
+@implementation GBTextLabel
+- (void)drawTextInRect:(CGRect)rect {
+    CGRect inner = UIEdgeInsetsInsetRect(rect, self.textInsets);
+    if ((self.verticalGravity & 0x70) != 0x10) {
+        CGFloat height =
+            [super textRectForBounds:inner limitedToNumberOfLines:self.numberOfLines].size.height;
+        if ((self.verticalGravity & 0x70) == 0x50)
+            inner.origin.y += MAX(0, inner.size.height - height);
+        inner.size.height = height;
+    }
+    [super drawTextInRect:inner];
+}
+@end
 
 @implementation GBSceneView {
     Scene _scene;
@@ -53,7 +70,7 @@ bool isLinear(const ViewNode& node) {
         [button addTarget:self action:@selector(clicked:) forControlEvents:UIControlEventTouchUpInside];
         view = button;
     } else if (isKind(node, "TextView")) {
-        UILabel* label = [UILabel new];
+        UILabel* label = [GBTextLabel new];
         label.numberOfLines = 0;
         view = label;
     } else if (isKind(node, "ScrollView") || isKind(node, "HorizontalScrollView")) {
@@ -78,8 +95,18 @@ bool isLinear(const ViewNode& node) {
     return view;
 }
 - (void)displayScene:(const Scene&)scene {
+    std::set<uint64_t> reachable;
+    try {
+        reachable = validateScene(scene);
+    } catch (const std::exception& error) {
+        if (self.onLayoutError)
+            self.onLayoutError(@(error.what()));
+        return;
+    }
     _scene = scene;
     for (const auto& [handle, node] : scene.views) {
+        if (!reachable.contains(handle))
+            continue;
         UIView* view = _views[@(handle)];
         if (!view) {
             view = [self createView:node];
@@ -91,6 +118,9 @@ bool isLinear(const ViewNode& node) {
         UIFont* font = [UIFont systemFontOfSize:std::clamp<CGFloat>(node.textSize, 1, 300)];
         if ([view isKindOfClass:UILabel.class]) {
             UILabel* label = (UILabel*)view;
+            ((GBTextLabel*)label).textInsets = UIEdgeInsetsMake(node.padding.top, node.padding.left,
+                                                                node.padding.bottom, node.padding.right);
+            ((GBTextLabel*)label).verticalGravity = node.gravity;
             label.text = text(node.text);
             label.font = font;
             label.textColor = color(node.textColor);
@@ -119,6 +149,8 @@ bool isLinear(const ViewNode& node) {
     }
     std::set<uint64_t> attached;
     for (const auto& [handle, node] : scene.views) {
+        if (!reachable.contains(handle))
+            continue;
         UIView* parent = _views[@(handle)];
         for (auto child : node.children) {
             UIView* childView = _views[@(child)];
@@ -128,7 +160,7 @@ bool isLinear(const ViewNode& node) {
         }
     }
     for (NSNumber* handle in _views.allKeys) {
-        if (!scene.views.contains(handle.unsignedLongLongValue)) {
+        if (!reachable.contains(handle.unsignedLongLongValue)) {
             [_views[handle] removeFromSuperview];
             [_views removeObjectForKey:handle];
         } else if (!attached.contains(handle.unsignedLongLongValue) &&
@@ -140,115 +172,39 @@ bool isLinear(const ViewNode& node) {
         [self addSubview:root];
     [self setNeedsLayout];
 }
-- (CGSize)measure:(uint64_t)handle available:(CGSize)available depth:(NSUInteger)depth {
-    if (depth > 256 || !_scene.views.contains(handle))
-        return CGSizeZero;
-    const auto& node = _scene.views.at(handle);
-    if (!node.visible)
-        return CGSizeZero;
-    const CGFloat width = node.width >= 0 ? node.width : std::max<CGFloat>(0, available.width);
-    const CGSize inner =
-        CGSizeMake(std::max<CGFloat>(0, width - node.padding.left - node.padding.right),
-                   std::max<CGFloat>(0, available.height - node.padding.top - node.padding.bottom));
-    CGSize size = CGSizeZero;
-    if (!node.children.empty()) {
-        for (auto child : node.children) {
-            CGSize measured = [self measure:child available:inner depth:depth + 1];
-            if (isLinear(node)) {
-                if (node.orientation == 1) {
-                    size.height += measured.height;
-                    size.width = std::max(size.width, measured.width);
-                } else {
-                    size.width += measured.width;
-                    size.height = std::max(size.height, measured.height);
-                }
-            } else {
-                size.width = std::max(size.width, measured.width);
-                size.height = std::max(size.height, measured.height);
-            }
-        }
-        size.width += node.padding.left + node.padding.right;
-        size.height += node.padding.top + node.padding.bottom;
-    } else {
-        UIView* view = _views[@(handle)];
-        size = [view sizeThatFits:CGSizeMake(inner.width, CGFLOAT_MAX)];
-        if ([view isKindOfClass:UITextField.class] || [view isKindOfClass:UIButton.class])
-            size.height = std::max<CGFloat>(44, size.height);
-        size.width += node.padding.left + node.padding.right;
-        size.height += node.padding.top + node.padding.bottom;
-    }
-    if (node.width == -1)
-        size.width = available.width;
-    else if (node.width >= 0)
-        size.width = node.width;
-    if (node.height == -1)
-        size.height = available.height;
-    else if (node.height >= 0)
-        size.height = node.height;
-    size.width = std::min(std::max<CGFloat>(0, size.width), std::max<CGFloat>(0, available.width));
-    size.height = std::max<CGFloat>(0, size.height);
-    return size;
-}
-- (void)layoutNode:(uint64_t)handle frame:(CGRect)frame depth:(NSUInteger)depth {
-    if (depth > 256 || !_scene.views.contains(handle))
-        return;
-    const auto& node = _scene.views.at(handle);
-    UIView* view = _views[@(handle)];
-    view.frame = frame;
-    CGRect inner =
-        UIEdgeInsetsInsetRect(view.bounds, UIEdgeInsetsMake(node.padding.top, node.padding.left,
-                                                            node.padding.bottom, node.padding.right));
-    inner.size.width = std::max<CGFloat>(0, inner.size.width);
-    inner.size.height = std::max<CGFloat>(0, inner.size.height);
-    const bool vertical = node.orientation == 1;
-    CGFloat fixed = 0, totalWeight = 0;
-    if (isLinear(node))
-        for (auto child : node.children) {
-            if (!_scene.views.contains(child) || !_scene.views.at(child).visible)
-                continue;
-            const auto& item = _scene.views.at(child);
-            const auto measured = [self measure:child available:inner.size depth:depth + 1];
-            fixed += vertical ? measured.height : measured.width;
-            totalWeight += std::max(0.0f, item.weight);
-        }
-    CGFloat cursor = vertical ? inner.origin.y : inner.origin.x;
-    const CGFloat remainder = std::max<CGFloat>(0, (vertical ? inner.size.height : inner.size.width) - fixed);
-    CGSize scrollContent = CGSizeZero;
-    for (auto child : node.children) {
-        if (!_scene.views.contains(child) || !_scene.views.at(child).visible)
-            continue;
-        const auto& item = _scene.views.at(child);
-        CGSize available = inner.size;
-        if ([view isKindOfClass:UIScrollView.class])
-            available.height = std::max<CGFloat>(inner.size.height, 10000);
-        CGSize measured = [self measure:child available:available depth:depth + 1];
-        CGRect childFrame = CGRectMake(inner.origin.x, inner.origin.y, measured.width, measured.height);
-        if (isLinear(node)) {
-            if (totalWeight > 0 && item.weight > 0) {
-                if (vertical)
-                    childFrame.size.height += remainder * item.weight / totalWeight;
-                else
-                    childFrame.size.width += remainder * item.weight / totalWeight;
-            }
-            if (vertical) {
-                childFrame.origin.y = cursor;
-                cursor += childFrame.size.height;
-            } else {
-                childFrame.origin.x = cursor;
-                cursor += childFrame.size.width;
-            }
-        }
-        [self layoutNode:child frame:childFrame depth:depth + 1];
-        scrollContent.width = std::max(scrollContent.width, CGRectGetMaxX(childFrame));
-        scrollContent.height = std::max(scrollContent.height, CGRectGetMaxY(childFrame));
-    }
-    if ([view isKindOfClass:UIScrollView.class])
-        ((UIScrollView*)view).contentSize = scrollContent;
-}
 - (void)layoutSubviews {
     [super layoutSubviews];
-    if (_scene.root)
-        [self layoutNode:_scene.root frame:self.bounds depth:0];
+    if (!_scene.root)
+        return;
+    try {
+        auto layout = layoutScene(
+            _scene, {static_cast<float>(self.bounds.size.width), static_cast<float>(self.bounds.size.height)},
+            [self](const ViewNode& node, Size maximum) {
+                UIView* view = self->_views[@(node.handle)];
+                CGSize limit = CGSizeMake(std::isfinite(maximum.width) ? maximum.width : CGFLOAT_MAX,
+                                          std::isfinite(maximum.height) ? maximum.height : CGFLOAT_MAX);
+                CGSize size = CGSizeZero;
+                if ([view isKindOfClass:UILabel.class] || [view isKindOfClass:UIButton.class] ||
+                    [view isKindOfClass:UITextField.class] || [view isKindOfClass:UISwitch.class] ||
+                    [view isKindOfClass:UIImageView.class])
+                    size = [view sizeThatFits:limit];
+                if ([view isKindOfClass:UITextField.class] || [view isKindOfClass:UIButton.class])
+                    size.height = MAX(44, size.height);
+                if ([view isKindOfClass:UITextField.class])
+                    size.width = MAX(64, size.width);
+                return Size{static_cast<float>(size.width), static_cast<float>(size.height)};
+            });
+        for (const auto& [handle, box] : layout) {
+            UIView* view = _views[@(handle)];
+            view.frame = CGRectMake(box.frame.x, box.frame.y, box.frame.width, box.frame.height);
+            if ([view isKindOfClass:UIScrollView.class])
+                ((UIScrollView*)view).contentSize = CGSizeMake(box.content.width, box.content.height);
+        }
+    } catch (const std::exception& error) {
+        _scene.root = 0;
+        if (self.onLayoutError)
+            self.onLayoutError(@(error.what()));
+    }
 }
 - (void)clicked:(UIControl*)sender {
     if (self.onClick)

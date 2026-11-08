@@ -6,6 +6,16 @@
 @end
 
 @implementation GBApplicationTests
+- (void)assertVisible:(UIView*)view inController:(UIViewController*)controller {
+    XCTAssertNotNil(view);
+    [controller.view layoutIfNeeded];
+    const CGRect frame = [view convertRect:view.bounds toView:controller.view];
+    const CGRect viewport = CGRectInset(controller.view.safeAreaLayoutGuide.layoutFrame, -1, -1);
+    XCTAssertGreaterThan(frame.size.width, 0);
+    XCTAssertGreaterThan(frame.size.height, 0);
+    XCTAssertTrue(CGRectContainsRect(viewport, frame), @"view outside viewport: %@",
+                  NSStringFromCGRect(frame));
+}
 - (UIView*)findView:(UIView*)root matching:(BOOL (^)(UIView*))predicate {
     if (predicate(root))
         return root;
@@ -68,6 +78,8 @@
     }];
     XCTAssertEqual(inputs.count, 3U);
     if (inputs.count == 3) {
+        for (UITextField* input in inputs)
+            [self assertVisible:input inController:runtime];
         inputs[0].text = @"7";
         inputs[1].text = @"7";
         inputs[2].text = @"3";
@@ -82,6 +94,12 @@
                          }] != nil;
         }]);
         [runtime.view layoutIfNeeded];
+        UIView* result = [self findView:runtime.view
+                               matching:^BOOL(UIView* view) {
+                                   return [view isKindOfClass:UILabel.class] &&
+                                          [((UILabel*)view).text isEqualToString:@"7\n7\n7"];
+                               }];
+        [self assertVisible:result inController:runtime];
         UIGraphicsImageRenderer* renderer = [[UIGraphicsImageRenderer alloc] initWithBounds:window.bounds];
         UIImage* image = [renderer imageWithActions:^(UIGraphicsImageRendererContext* context) {
             [window drawViewHierarchyInRect:window.bounds afterScreenUpdates:YES];

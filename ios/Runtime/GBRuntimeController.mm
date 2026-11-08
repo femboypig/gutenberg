@@ -65,6 +65,9 @@ using namespace gutenberg;
         [_status.centerXAnchor constraintEqualToAnchor:self.view.centerXAnchor]
     ]];
     __weak GBRuntimeController* weakSelf = self;
+    _canvas.onLayoutError = ^(NSString* message) {
+        [weakSelf reportFailure:message];
+    };
     _canvas.onClick = ^(uint64_t handle) {
         [weakSelf perform:[handle](AndroidSession& s) { s.click(handle); }];
     };

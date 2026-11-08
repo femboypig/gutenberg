@@ -341,6 +341,8 @@ Value AndroidSession::inflateNode(const XmlNode& xml, Value parent) {
             node.orientation = std::bit_cast<std::int32_t>(data.data);
         else if (name == "gravity")
             node.gravity = std::bit_cast<std::int32_t>(data.data);
+        else if (name == "layout_gravity")
+            node.layoutGravity = std::bit_cast<std::int32_t>(data.data);
         else if (name == "textSize")
             node.textSize = dimension(data);
         else if (name == "textColor")
