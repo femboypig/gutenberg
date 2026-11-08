@@ -76,6 +76,8 @@ jobs:
           -DGUTENBERG_EXTERNAL_TEST_APK=${{ github.workspace }}/build-fixture/randnum.apk
       - name: build simulator application
         run: xcodebuild -project build-simulator/Gutenberg.xcodeproj -scheme Gutenberg -configuration Debug -sdk iphonesimulator CODE_SIGNING_ALLOWED=NO build > build-simulator/simulator.log 2>&1
+      - name: configure simulator test action
+        run: python3 tools/configure_xcode_tests.py build-simulator/Gutenberg.xcodeproj
       - name: smoke launch simulator
         shell: bash
         run: |
