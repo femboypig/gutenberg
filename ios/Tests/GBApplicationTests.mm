@@ -1,4 +1,5 @@
 #import "../Library/GBLibraryStore.h"
+#include "../Runtime/GBHttpClient.h"
 #import "../Runtime/GBRuntimeController.h"
 #import <XCTest/XCTest.h>
 
@@ -6,6 +7,46 @@
 @end
 
 @implementation GBApplicationTests
+- (void)testHttpTransportHandlesPostRedirectLimitsAndCancellation {
+    XCTestExpectation* finished = [self expectationWithDescription:@"HTTP transport"];
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+        try {
+            gutenberg::HttpRequest request;
+            request.url = "http://127.0.0.1:8765/echo";
+            request.method = "POST";
+            request.body = {'a', 'b', 'c'};
+            const auto response = gutenberg::performHttpRequest(request, [] { return false; });
+            XCTAssertEqual(response.status, 201);
+            XCTAssertTrue(response.body == request.body);
+            request.url = "http://127.0.0.1:8765/redirect";
+            request.method = "GET";
+            request.body.clear();
+            request.followRedirects = false;
+            XCTAssertEqual(gutenberg::performHttpRequest(request, [] { return false; }).status, 302);
+            request.followRedirects = true;
+            XCTAssertEqual(gutenberg::performHttpRequest(request, [] { return false; }).status, 200);
+            request.responseLimit = 4;
+            bool limited = false;
+            try {
+                (void)gutenberg::performHttpRequest(request, [] { return false; });
+            } catch (const gutenberg::Error&) {
+                limited = true;
+            }
+            XCTAssertTrue(limited);
+            bool cancelled = false;
+            try {
+                (void)gutenberg::performHttpRequest(request, [] { return true; });
+            } catch (const gutenberg::Error& error) {
+                cancelled = error.code() == gutenberg::ErrorCode::cancelled;
+            }
+            XCTAssertTrue(cancelled);
+        } catch (const std::exception& error) {
+            XCTFail(@"HTTP transport failed: %s", error.what());
+        }
+        [finished fulfill];
+    });
+    [self waitForExpectations:@[ finished ] timeout:20];
+}
 - (void)assertVisible:(UIView*)view inController:(UIViewController*)controller {
     XCTAssertNotNil(view);
     [controller.view layoutIfNeeded];
@@ -193,6 +234,17 @@
     [UIImagePNGRepresentation(image)
         writeToURL:[documents URLByAppendingPathComponent:@"activity-validation.png"]
         atomically:YES];
+    UIButton* fetch =
+        (UIButton*)[self findView:runtime.view
+                         matching:^BOOL(UIView* view) {
+                             return [view isKindOfClass:UIButton.class] &&
+                                    [((UIButton*)view).currentTitle isEqualToString:@"Fetch network"];
+                         }];
+    XCTAssertNotNil(fetch);
+    [fetch sendActionsForControlEvents:UIControlEventTouchUpInside];
+    XCTAssertTrue([self waitFor:^BOOL {
+        return hasText(@"HTTP 200: network message");
+    }]);
     [navigation popViewControllerAnimated:NO];
     window.rootViewController = previous;
     NSError* error = nil;

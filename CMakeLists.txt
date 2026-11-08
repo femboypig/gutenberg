@@ -48,6 +48,7 @@ if(CMAKE_SYSTEM_NAME STREQUAL "iOS")
         ios/Library/GBLibraryController.mm
         ios/Runtime/GBSceneView.mm
         ios/Runtime/GBRuntimeController.mm
+        ios/Runtime/GBHttpClient.mm
     )
     target_link_libraries(Gutenberg PRIVATE gutenberg_core "-framework UIKit" "-framework Foundation" "-framework CoreGraphics" "-framework UniformTypeIdentifiers")
     target_compile_options(Gutenberg PRIVATE -fobjc-arc -Wall -Wextra)

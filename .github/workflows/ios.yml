@@ -89,6 +89,10 @@ jobs:
           sleep 3
           xcrun simctl io "$DEVICE" screenshot build-simulator/library.png
           xcrun simctl terminate "$DEVICE" app.gutenberg.ios
+          python3 tools/fixture_http_server.py 8765 > build-simulator/http.log 2>&1 &
+          SERVER_PID=$!
+          trap 'kill "$SERVER_PID"' EXIT
+          python3 -c 'import time,urllib.request; time.sleep(0.3); assert urllib.request.urlopen("http://127.0.0.1:8765/message").read() == b"network message\n"'
           xcodebuild -project build-simulator/Gutenberg.xcodeproj -scheme GutenbergTests -configuration Debug -destination "platform=iOS Simulator,id=$DEVICE" -resultBundlePath build-simulator/ApplicationTests.xcresult CODE_SIGNING_ALLOWED=NO test > build-simulator/tests.log 2>&1
           CONTAINER=$(xcrun simctl get_app_container "$DEVICE" app.gutenberg.ios data)
           cp "$CONTAINER/Documents/activity-validation.png" build-simulator/activity.png

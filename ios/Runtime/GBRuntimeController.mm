@@ -1,5 +1,6 @@
 #import "GBRuntimeController.h"
 #import "../Library/GBLibraryStore.h"
+#include "GBHttpClient.h"
 #import "GBSceneView.h"
 #include <atomic>
 #include <mutex>
@@ -120,6 +121,7 @@ using namespace gutenberg;
         try {
             auto package = std::make_shared<Package>(readFile(file.fileSystemRepresentation));
             AndroidHost host;
+            host.http = performHttpRequest;
             host.dataDirectory = [file.URLByDeletingLastPathComponent URLByAppendingPathComponent:@"data"
                                                                                       isDirectory:YES]
                                      .fileSystemRepresentation;
