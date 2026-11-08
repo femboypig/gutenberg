@@ -14,6 +14,7 @@ add_library(gutenberg_core
     core/src/dex.cpp
     core/src/runtime.cpp
     core/src/interpreter.cpp
+    core/src/java.cpp
 )
 target_include_directories(gutenberg_core PUBLIC core/include)
 target_link_libraries(gutenberg_core PUBLIC ZLIB::ZLIB)
@@ -24,9 +25,11 @@ if(GUTENBERG_SANITIZE)
 endif()
 
 if(NOT CMAKE_SYSTEM_NAME STREQUAL "iOS")
+    add_executable(gutenberg tools/main.cpp)
+    target_link_libraries(gutenberg PRIVATE gutenberg_core)
     include(CTest)
     if(BUILD_TESTING)
-        add_executable(core_tests tests/core_tests.cpp tests/resource_tests.cpp tests/dex_tests.cpp tests/runtime_tests.cpp)
+        add_executable(core_tests tests/core_tests.cpp tests/resource_tests.cpp tests/dex_tests.cpp tests/runtime_tests.cpp tests/java_tests.cpp)
         target_link_libraries(core_tests PRIVATE gutenberg_core)
         add_test(NAME core_tests COMMAND core_tests)
     endif()
