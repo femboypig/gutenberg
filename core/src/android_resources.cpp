@@ -41,6 +41,54 @@ const XmlAttribute* attribute(Runtime& vm, Value set, std::string_view ns, std::
 } // namespace
 
 void AndroidSession::installResources() {
+    vm_.defineClass("Landroid/graphics/drawable/Drawable;");
+    vm_.defineClass("Landroid/graphics/drawable/BitmapDrawable;", "Landroid/graphics/drawable/Drawable;");
+    auto decodeResource = [this](Runtime& r, Value id) {
+        const auto path = package_->resources().string(static_cast<std::uint32_t>(id.bits));
+        if (path.empty())
+            r.raise("Landroid/content/res/Resources$NotFoundException;", "missing drawable resource");
+        return decodeBitmap(r, package_->archive().read(path));
+    };
+    vm_.bind("Landroid/graphics/BitmapFactory;", "decodeResource",
+             "(Landroid/content/res/Resources;I)Landroid/graphics/Bitmap;",
+             [decodeResource](Runtime& r, Arguments a) { return decodeResource(r, a[1]); });
+    vm_.bind("Landroid/content/res/Resources;", "getDrawable", "(I)Landroid/graphics/drawable/Drawable;",
+             [decodeResource](Runtime& r, Arguments a) {
+                 const auto bitmap = decodeResource(r, a[1]);
+                 if (bitmap.isNull())
+                     r.raise("Landroid/content/res/Resources$NotFoundException;",
+                             "drawable format is not supported");
+                 const auto value = r.allocate("Landroid/graphics/drawable/BitmapDrawable;");
+                 r.object(value).fields["bitmap"] = bitmap;
+                 return value;
+             });
+    vm_.bind("Landroid/graphics/drawable/BitmapDrawable;", "getBitmap", "()Landroid/graphics/Bitmap;",
+             [](Runtime& r, Arguments a) { return r.object(a[0]).fields["bitmap"]; });
+    vm_.bind("Landroid/graphics/drawable/Drawable;", "setBounds", "(IIII)V", [](Runtime& r, Arguments a) {
+        const auto bounds = r.allocate("Landroid/graphics/Rect;");
+        const Value args[]{bounds, a[1], a[2], a[3], a[4]};
+        (void)r.invoke("Landroid/graphics/Rect;", "<init>", "(IIII)V", args, InvokeKind::direct);
+        r.object(a[0]).fields["bounds"] = bounds;
+        return Value{};
+    });
+    for (const std::string name : {"getIntrinsicWidth", "getIntrinsicHeight"})
+        vm_.bind("Landroid/graphics/drawable/BitmapDrawable;", name, "()I", [name](Runtime& r, Arguments a) {
+            const auto image = bitmapSnapshot(r, r.object(a[0]).fields["bitmap"]);
+            return Value::integer(name == "getIntrinsicWidth" ? image->width : image->height);
+        });
+    vm_.bind("Landroid/graphics/drawable/BitmapDrawable;", "draw", "(Landroid/graphics/Canvas;)V",
+             [](Runtime& r, Arguments a) {
+                 const auto& fields = r.object(a[0]).fields;
+                 const auto bounds = fields.find("bounds");
+                 if (bounds == fields.end())
+                     return Value{};
+                 const Value args[]{a[1], fields.at("bitmap"), Value{}, bounds->second, Value{}};
+                 (void)r.invoke("Landroid/graphics/Canvas;", "drawBitmap",
+                                "(Landroid/graphics/Bitmap;Landroid/graphics/Rect;Landroid/graphics/"
+                                "Rect;Landroid/graphics/Paint;)V",
+                                args);
+                 return Value{};
+             });
     vm_.defineClass(typedArrayType);
     vm_.defineClass("Landroid/content/res/Resources$NotFoundException;", "Ljava/lang/RuntimeException;");
     auto obtain = [this](Runtime& r, Arguments a) {
