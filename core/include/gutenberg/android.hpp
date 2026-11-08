@@ -2,12 +2,14 @@
 
 #include "java.hpp"
 #include "package.hpp"
-#include <map>
 #include <chrono>
+#include <map>
 
 namespace gutenberg {
 
-struct Insets { float left = 0, top = 0, right = 0, bottom = 0; };
+struct Insets {
+    float left = 0, top = 0, right = 0, bottom = 0;
+};
 struct ViewNode {
     std::uint64_t handle = 0;
     std::int32_t androidId = -1;
@@ -43,7 +45,7 @@ struct AndroidHost {
 };
 
 class AndroidSession {
-public:
+  public:
     AndroidSession(std::shared_ptr<const Package> package, AndroidHost host, RuntimeLimits limits = {});
     ~AndroidSession();
     void launch(std::string activity = {});
@@ -55,14 +57,23 @@ public:
     void changeChecked(std::uint64_t handle, bool checked);
     void back();
     void pumpTasks();
-    void cancel() noexcept { vm_.cancel(); }
-    [[nodiscard]] const Scene& scene() const noexcept { return scene_; }
-    [[nodiscard]] Runtime& runtime() noexcept { return vm_; }
-    [[nodiscard]] const Package& package() const noexcept { return *package_; }
+    void cancel() noexcept {
+        vm_.cancel();
+    }
+    [[nodiscard]] const Scene& scene() const noexcept {
+        return scene_;
+    }
+    [[nodiscard]] Runtime& runtime() noexcept {
+        return vm_;
+    }
+    [[nodiscard]] const Package& package() const noexcept {
+        return *package_;
+    }
     [[nodiscard]] ViewNode& view(Value value);
     [[nodiscard]] Value inflate(std::uint32_t resource, Value parent = {}, bool attach = false);
     void publish();
-private:
+
+  private:
     void installFramework();
     void installViews();
     void installServices();
@@ -76,10 +87,14 @@ private:
     Value activity_, application_;
     std::map<std::uint64_t, Value> clickListeners_;
     std::map<std::uint64_t, Value> checkListeners_;
-    struct Task { std::chrono::steady_clock::time_point due; Value runnable; Value handler; };
+    struct Task {
+        std::chrono::steady_clock::time_point due;
+        Value runnable;
+        Value handler;
+    };
     std::vector<Task> tasks_;
     std::map<std::string, std::string> preferences_;
     enum class State { created, resumed, paused, stopped } state_ = State::created;
 };
 
-}
+} // namespace gutenberg

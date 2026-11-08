@@ -6,18 +6,29 @@
 namespace gutenberg {
 
 enum class ErrorCode {
-    io, malformed_archive, malformed_xml, malformed_resources, malformed_dex,
-    limit_exceeded, unsupported, verification, missing_class, missing_method,
-    guest_exception, cancelled
+    io,
+    malformed_archive,
+    malformed_xml,
+    malformed_resources,
+    malformed_dex,
+    limit_exceeded,
+    unsupported,
+    verification,
+    missing_class,
+    missing_method,
+    guest_exception,
+    cancelled
 };
 
 class Error final : public std::runtime_error {
-public:
-    Error(ErrorCode code, std::string message)
-        : std::runtime_error(std::move(message)), code_(code) {}
-    [[nodiscard]] ErrorCode code() const noexcept { return code_; }
-private:
+  public:
+    Error(ErrorCode code, std::string message) : std::runtime_error(std::move(message)), code_(code) {}
+    [[nodiscard]] ErrorCode code() const noexcept {
+        return code_;
+    }
+
+  private:
     ErrorCode code_;
 };
 
-}
+} // namespace gutenberg

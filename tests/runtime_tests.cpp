@@ -1,6 +1,6 @@
-#include "test.hpp"
 #include "binary_builder.hpp"
 #include "gutenberg/runtime.hpp"
+#include "test.hpp"
 #include <cmath>
 #include <zlib.h>
 
@@ -11,15 +11,19 @@ DexFile emptyDex() {
     Bytes bytes(112);
     const std::string magic("dex\n035\0", 8);
     std::copy(magic.begin(), magic.end(), bytes.begin());
-    fixture::patch32(bytes, 32, 112); fixture::patch32(bytes, 36, 112); fixture::patch32(bytes, 40, 0x12345678);
+    fixture::patch32(bytes, 32, 112);
+    fixture::patch32(bytes, 36, 112);
+    fixture::patch32(bytes, 40, 0x12345678);
     fixture::patch32(bytes, 8, static_cast<std::uint32_t>(adler32(1, bytes.data() + 12, 100)));
     return DexFile(std::move(bytes));
 }
 Value run(Runtime& vm, std::initializer_list<std::uint16_t> words, std::uint16_t registers = 8) {
-    Code code; code.registers = registers; code.words = words;
+    Code code;
+    code.registers = registers;
+    code.words = words;
     return vm.execute(emptyDex(), code, {});
 }
-}
+} // namespace
 
 TEST(interpreter_integer_arithmetic) {
     Runtime vm;
@@ -30,18 +34,22 @@ TEST(interpreter_integer_arithmetic) {
 TEST(interpreter_overflow_matches_java) {
     Runtime vm;
     // MAX_VALUE + 1 wraps, rather than triggering signed C++ overflow.
-    CHECK(run(vm, {0x0014, 0xffff, 0x7fff, 0x0112, 0x11d8, 0x0100, 0x110f}, 18).i32() == std::numeric_limits<std::int32_t>::min());
+    CHECK(run(vm, {0x0014, 0xffff, 0x7fff, 0x0112, 0x11d8, 0x0100, 0x110f}, 18).i32() ==
+          std::numeric_limits<std::int32_t>::min());
 }
 
 TEST(interpreter_loop_and_branch) {
     Runtime vm;
     // sum 1..10 using a backwards branch.
-    CHECK(run(vm, {0x0012, 0x1112, 0x0213, 11, 0x0090, 0x0100, 0x01d8, 0x0101, 0x2134, 0xfffc, 0x000f}).i32() == 55);
+    CHECK(
+        run(vm, {0x0012, 0x1112, 0x0213, 11, 0x0090, 0x0100, 0x01d8, 0x0101, 0x2134, 0xfffc, 0x000f}).i32() ==
+        55);
 }
 
 TEST(interpreter_wide_register_pairs) {
     Runtime vm;
-    CHECK(run(vm, {0x0018, 0xffff, 0xffff, 0xffff, 0x7fff, 0x0216, 1, 0x049b, 0x0200, 0x0410}).i64() == std::numeric_limits<std::int64_t>::min());
+    CHECK(run(vm, {0x0018, 0xffff, 0xffff, 0xffff, 0x7fff, 0x0216, 1, 0x049b, 0x0200, 0x0410}).i64() ==
+          std::numeric_limits<std::int64_t>::min());
 }
 
 TEST(interpreter_exception_regions) {
@@ -82,7 +90,8 @@ TEST(runtime_object_identity_and_unicode) {
 TEST(runtime_class_assignability) {
     Runtime vm;
     vm.defineClass("Ljava/lang/Object;", "");
-    vm.defineClass("LParent;"); vm.defineClass("LChild;", "LParent;", {"LInterface;"});
+    vm.defineClass("LParent;");
+    vm.defineClass("LChild;", "LParent;", {"LInterface;"});
     CHECK(vm.assignable("LChild;", "LParent;"));
     CHECK(vm.assignable("LChild;", "LInterface;"));
     CHECK(vm.assignable("[LChild;", "[LParent;"));
@@ -91,8 +100,10 @@ TEST(runtime_class_assignability) {
 
 TEST(runtime_native_dispatch) {
     Runtime vm;
-    vm.defineClass("Ljava/lang/Object;", ""); vm.defineClass("LMath;");
-    vm.bind("LMath;", "twice", "(I)I", [](Runtime&, Arguments args) { return Value::integer(args[0].i32() * 2); });
+    vm.defineClass("Ljava/lang/Object;", "");
+    vm.defineClass("LMath;");
+    vm.bind("LMath;", "twice", "(I)I",
+            [](Runtime&, Arguments args) { return Value::integer(args[0].i32() * 2); });
     const Value args[] = {Value::integer(21)};
     CHECK(vm.invoke("LMath;", "twice", "(I)I", args, InvokeKind::static_).i32() == 42);
 }
@@ -106,14 +117,18 @@ TEST(method_descriptors_are_validated) {
 TEST(runtime_resolves_inherited_fields_and_defaults) {
     Runtime vm;
     vm.defineClass("Ljava/lang/Object;", "");
-    vm.defineClass("LParent;"); vm.defineClass("LChild;", "LParent;");
+    vm.defineClass("LParent;");
+    vm.defineClass("LChild;", "LParent;");
     vm.defineField("LParent;", "number", "I", Value::integer(17));
     const auto value = vm.allocate("LChild;");
     CHECK(vm.getField(value, {"LChild;", "number", "I"}).i32() == 17);
     vm.putField(value, {"LChild;", "number", "I"}, Value::integer(23));
     CHECK(vm.getField(value, {"LParent;", "number", "I"}).i32() == 23);
-    try { (void)vm.getField(value, {"LChild;", "missing", "I"}); CHECK(false); }
-    catch (const GuestException&) {}
+    try {
+        (void)vm.getField(value, {"LChild;", "missing", "I"});
+        CHECK(false);
+    } catch (const GuestException&) {
+    }
 }
 
 TEST(runtime_bounds_total_array_storage) {

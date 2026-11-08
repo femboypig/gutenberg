@@ -1,14 +1,34 @@
 #pragma once
 #include "gutenberg/bytes.hpp"
-#include <optional>
 #include <memory>
+#include <optional>
 
 namespace gutenberg::jit {
 
 enum class Operation {
-    nop, constant, move, negate, complement, add, subtract, multiply, and_, or_, xor_,
-    shiftLeft, shiftRight, unsignedShiftRight, return_, returnVoid, jump,
-    equal, notEqual, less, greaterEqual, greater, lessEqual
+    nop,
+    constant,
+    move,
+    negate,
+    complement,
+    add,
+    subtract,
+    multiply,
+    and_,
+    or_,
+    xor_,
+    shiftLeft,
+    shiftRight,
+    unsignedShiftRight,
+    return_,
+    returnVoid,
+    jump,
+    equal,
+    notEqual,
+    less,
+    greaterEqual,
+    greater,
+    lessEqual
 };
 
 struct Instruction {
@@ -24,13 +44,16 @@ struct Instruction {
 [[nodiscard]] Bytes emitX64(const std::vector<Instruction>& instructions);
 
 class ExecutableMemory {
-public:
+  public:
     ~ExecutableMemory();
     static std::unique_ptr<ExecutableMemory> create(std::span<const std::uint8_t> code);
-    [[nodiscard]] void* address() const noexcept { return address_; }
-private:
+    [[nodiscard]] void* address() const noexcept {
+        return address_;
+    }
+
+  private:
     void* address_ = nullptr;
     std::size_t size_ = 0;
 };
 
-}
+} // namespace gutenberg::jit

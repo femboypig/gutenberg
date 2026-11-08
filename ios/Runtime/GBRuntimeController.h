@@ -2,5 +2,5 @@
 @class GBInstalledApp;
 
 @interface GBRuntimeController : UIViewController
-- (instancetype)initWithApp:(GBInstalledApp *)app;
+- (instancetype)initWithApp:(GBInstalledApp*)app;
 @end

@@ -1,6 +1,6 @@
-#include "test.hpp"
 #include "binary_builder.hpp"
 #include "gutenberg/dex.hpp"
+#include "test.hpp"
 #include <zlib.h>
 
 using namespace gutenberg;
@@ -16,7 +16,7 @@ Bytes emptyDex() {
     fixture::patch32(bytes, 8, static_cast<std::uint32_t>(adler32(1, bytes.data() + 12, 100)));
     return bytes;
 }
-}
+} // namespace
 
 TEST(dex_header_and_version) {
     DexFile dex(emptyDex());
@@ -32,12 +32,14 @@ TEST(dex_checksum_and_truncation) {
     test::rejects([&] { (void)DexFile(bytes); });
     bytes = emptyDex();
     for (std::size_t size = 0; size < bytes.size(); ++size) {
-        test::rejects([&] { (void)DexFile(Bytes(bytes.begin(), bytes.begin() + static_cast<std::ptrdiff_t>(size))); });
+        test::rejects(
+            [&] { (void)DexFile(Bytes(bytes.begin(), bytes.begin() + static_cast<std::ptrdiff_t>(size))); });
     }
 }
 
 TEST(method_register_word_count) {
-    MethodRef ref{"LExample;", "run", "(IJD[Ljava/lang/String;)V", {"I", "J", "D", "[Ljava/lang/String;"}, "V"};
+    MethodRef ref{
+        "LExample;", "run", "(IJD[Ljava/lang/String;)V", {"I", "J", "D", "[Ljava/lang/String;"}, "V"};
     CHECK(ref.argumentWords(false) == 6);
     CHECK(ref.argumentWords(true) == 7);
     CHECK(ref.key() == "LExample;->run(IJD[Ljava/lang/String;)V");

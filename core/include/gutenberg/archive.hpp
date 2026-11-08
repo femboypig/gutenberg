@@ -24,15 +24,20 @@ struct ArchiveEntry {
 };
 
 class Archive {
-public:
+  public:
     explicit Archive(Bytes bytes, ArchiveLimits limits = {});
-    [[nodiscard]] const std::map<std::string, ArchiveEntry, std::less<>>& entries() const noexcept { return entries_; }
-    [[nodiscard]] bool contains(std::string_view name) const { return entries_.contains(name); }
+    [[nodiscard]] const std::map<std::string, ArchiveEntry, std::less<>>& entries() const noexcept {
+        return entries_;
+    }
+    [[nodiscard]] bool contains(std::string_view name) const {
+        return entries_.contains(name);
+    }
     [[nodiscard]] Bytes read(std::string_view name) const;
-private:
+
+  private:
     Bytes bytes_;
     ArchiveLimits limits_;
     std::map<std::string, ArchiveEntry, std::less<>> entries_;
 };
 
-}
+} // namespace gutenberg

@@ -12,7 +12,7 @@ struct JitStatistics {
 };
 
 class JitEngine {
-public:
+  public:
     JitEngine();
     ~JitEngine();
     JitEngine(const JitEngine&) = delete;
@@ -20,9 +20,10 @@ public:
     [[nodiscard]] std::optional<Value> execute(Runtime& runtime, const Code& code, Arguments arguments);
     [[nodiscard]] const JitStatistics& statistics() const noexcept;
     [[nodiscard]] bool available() const noexcept;
-private:
+
+  private:
     struct Implementation;
     std::unique_ptr<Implementation> implementation_;
 };
 
-}
+} // namespace gutenberg

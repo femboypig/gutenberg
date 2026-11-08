@@ -25,12 +25,15 @@ struct RuntimeLimits {
 };
 
 class GuestException final : public std::exception {
-public:
+  public:
     GuestException(Value value, std::string message) : value(value), message_(std::move(message)) {}
-    [[nodiscard]] const char* what() const noexcept override { return message_.c_str(); }
+    [[nodiscard]] const char* what() const noexcept override {
+        return message_.c_str();
+    }
     Value value;
     std::vector<std::string> frames;
-private:
+
+  private:
     std::string message_;
 };
 
@@ -40,18 +43,22 @@ struct MethodLocation {
 };
 
 class Runtime {
-public:
+  public:
     explicit Runtime(RuntimeLimits limits = {});
     ~Runtime();
     Runtime(const Runtime&) = delete;
     Runtime& operator=(const Runtime&) = delete;
 
     void load(std::shared_ptr<const DexFile> dex);
-    void defineClass(std::string type, std::string super = "Ljava/lang/Object;", std::vector<std::string> interfaces = {});
+    void defineClass(std::string type, std::string super = "Ljava/lang/Object;",
+                     std::vector<std::string> interfaces = {});
     void bind(std::string owner, std::string name, std::string descriptor, NativeMethod implementation);
-    [[nodiscard]] Value invoke(const MethodRef& method, Arguments arguments, InvokeKind kind = InvokeKind::virtual_);
-    [[nodiscard]] Value invoke(std::string owner, std::string name, std::string descriptor, Arguments arguments, InvokeKind kind = InvokeKind::virtual_);
-    [[nodiscard]] Value execute(const DexFile& dex, const Code& code, Arguments arguments, std::string_view context = {});
+    [[nodiscard]] Value invoke(const MethodRef& method, Arguments arguments,
+                               InvokeKind kind = InvokeKind::virtual_);
+    [[nodiscard]] Value invoke(std::string owner, std::string name, std::string descriptor,
+                               Arguments arguments, InvokeKind kind = InvokeKind::virtual_);
+    [[nodiscard]] Value execute(const DexFile& dex, const Code& code, Arguments arguments,
+                                std::string_view context = {});
 
     [[nodiscard]] Value allocate(std::string type);
     [[nodiscard]] Value array(std::string type, std::int32_t size);
@@ -63,7 +70,8 @@ public:
     [[nodiscard]] const Object& object(Value value) const;
     [[nodiscard]] bool assignable(std::string_view actual, std::string_view expected) const;
     [[nodiscard]] bool hasClass(std::string_view type) const;
-    [[nodiscard]] std::optional<MethodLocation> findMethod(std::string_view type, std::string_view name, std::string_view descriptor) const;
+    [[nodiscard]] std::optional<MethodLocation> findMethod(std::string_view type, std::string_view name,
+                                                           std::string_view descriptor) const;
     [[nodiscard]] Value getStatic(const FieldRef& field);
     void putStatic(const FieldRef& field, Value value);
     [[nodiscard]] Value getField(Value receiver, const FieldRef& field);
@@ -71,16 +79,29 @@ public:
     void defineField(std::string owner, std::string name, std::string type, Value initial = {});
     void initialize(std::string_view type);
     [[noreturn]] void raise(std::string type, std::string message);
-    void cancel() noexcept { cancelled_.store(true, std::memory_order_relaxed); }
-    void resetCancellation() noexcept { cancelled_.store(false, std::memory_order_relaxed); }
+    void cancel() noexcept {
+        cancelled_.store(true, std::memory_order_relaxed);
+    }
+    void resetCancellation() noexcept {
+        cancelled_.store(false, std::memory_order_relaxed);
+    }
     void tick();
-    [[nodiscard]] std::size_t heapSize() const noexcept { return heap_.size(); }
-    [[nodiscard]] std::uint64_t instructionCount() const noexcept { return instructions_; }
-    [[nodiscard]] const RuntimeLimits& limits() const noexcept { return limits_; }
+    [[nodiscard]] std::size_t heapSize() const noexcept {
+        return heap_.size();
+    }
+    [[nodiscard]] std::uint64_t instructionCount() const noexcept {
+        return instructions_;
+    }
+    [[nodiscard]] const RuntimeLimits& limits() const noexcept {
+        return limits_;
+    }
     [[nodiscard]] JitEngine& jit() noexcept;
-    void enableJit(bool enabled) noexcept { jitEnabled_ = enabled; }
+    void enableJit(bool enabled) noexcept {
+        jitEnabled_ = enabled;
+    }
     std::function<void(std::string_view)> logger;
-private:
+
+  private:
     struct ClassInfo {
         std::string super;
         std::vector<std::string> interfaces;
@@ -109,4 +130,4 @@ private:
 [[nodiscard]] MethodRef methodRef(std::string owner, std::string name, std::string descriptor);
 [[nodiscard]] std::u16string utf16(std::string_view text);
 
-}
+} // namespace gutenberg

@@ -11,7 +11,9 @@ struct MethodRef {
     std::string descriptor;
     std::vector<std::string> parameters;
     std::string returnType;
-    [[nodiscard]] std::string key() const { return owner + "->" + name + descriptor; }
+    [[nodiscard]] std::string key() const {
+        return owner + "->" + name + descriptor;
+    }
     [[nodiscard]] std::size_t argumentWords(bool instance) const;
 };
 
@@ -19,7 +21,9 @@ struct FieldRef {
     std::string owner;
     std::string name;
     std::string type;
-    [[nodiscard]] std::string key() const { return owner + "->" + name + ":" + type; }
+    [[nodiscard]] std::string key() const {
+        return owner + "->" + name + ":" + type;
+    }
 };
 
 struct EncodedValue {
@@ -66,17 +70,26 @@ struct DexClass {
 };
 
 class DexFile {
-public:
+  public:
     explicit DexFile(Bytes bytes);
     [[nodiscard]] const std::string& string(std::uint32_t index) const;
     [[nodiscard]] const std::string& type(std::uint32_t index) const;
     [[nodiscard]] const MethodRef& method(std::uint32_t index) const;
     [[nodiscard]] const FieldRef& field(std::uint32_t index) const;
-    [[nodiscard]] const std::vector<DexClass>& classes() const noexcept { return classes_; }
-    [[nodiscard]] const std::vector<MethodRef>& methods() const noexcept { return methods_; }
-    [[nodiscard]] const std::vector<FieldRef>& fields() const noexcept { return fields_; }
-    [[nodiscard]] const std::string& version() const noexcept { return version_; }
-private:
+    [[nodiscard]] const std::vector<DexClass>& classes() const noexcept {
+        return classes_;
+    }
+    [[nodiscard]] const std::vector<MethodRef>& methods() const noexcept {
+        return methods_;
+    }
+    [[nodiscard]] const std::vector<FieldRef>& fields() const noexcept {
+        return fields_;
+    }
+    [[nodiscard]] const std::string& version() const noexcept {
+        return version_;
+    }
+
+  private:
     [[nodiscard]] Code readCode(std::uint32_t offset) const;
     [[nodiscard]] EncodedValue readEncoded(std::size_t& cursor, unsigned depth = 0) const;
     Bytes bytes_;
@@ -88,4 +101,4 @@ private:
     std::vector<DexClass> classes_;
 };
 
-}
+} // namespace gutenberg

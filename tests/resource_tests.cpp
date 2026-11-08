@@ -1,6 +1,6 @@
-#include "test.hpp"
 #include "binary_builder.hpp"
 #include "gutenberg/resources.hpp"
+#include "test.hpp"
 
 using namespace gutenberg;
 
@@ -28,7 +28,12 @@ TEST(string_pool_indices_are_checked) {
 
 TEST(resource_table_rejects_truncated_package) {
     Bytes bytes;
-    fixture::u16(bytes, 2); fixture::u16(bytes, 12); fixture::u32(bytes, 20); fixture::u32(bytes, 1);
-    fixture::u16(bytes, 0x200); fixture::u16(bytes, 8); fixture::u32(bytes, 8);
+    fixture::u16(bytes, 2);
+    fixture::u16(bytes, 12);
+    fixture::u32(bytes, 20);
+    fixture::u32(bytes, 1);
+    fixture::u16(bytes, 0x200);
+    fixture::u16(bytes, 8);
+    fixture::u32(bytes, 8);
     test::rejects([&] { (void)Resources(bytes); });
 }

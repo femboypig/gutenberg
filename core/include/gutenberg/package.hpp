@@ -29,16 +29,25 @@ struct PackageInfo {
 };
 
 class Package {
-public:
+  public:
     explicit Package(Bytes bytes);
-    [[nodiscard]] const PackageInfo& info() const noexcept { return info_; }
-    [[nodiscard]] const Resources& resources() const noexcept { return resources_; }
-    [[nodiscard]] const Archive& archive() const noexcept { return archive_; }
-    [[nodiscard]] const std::vector<std::shared_ptr<const DexFile>>& dexFiles() const noexcept { return dexFiles_; }
+    [[nodiscard]] const PackageInfo& info() const noexcept {
+        return info_;
+    }
+    [[nodiscard]] const Resources& resources() const noexcept {
+        return resources_;
+    }
+    [[nodiscard]] const Archive& archive() const noexcept {
+        return archive_;
+    }
+    [[nodiscard]] const std::vector<std::shared_ptr<const DexFile>>& dexFiles() const noexcept {
+        return dexFiles_;
+    }
     [[nodiscard]] XmlNode xml(std::string_view path) const;
     [[nodiscard]] Bytes asset(std::string_view path) const;
     [[nodiscard]] std::string resourceText(const ResourceValue& value) const;
-private:
+
+  private:
     Archive archive_;
     Resources resources_;
     PackageInfo info_;
@@ -47,4 +56,4 @@ private:
 
 [[nodiscard]] std::string classDescriptor(std::string name, std::string_view package);
 
-}
+} // namespace gutenberg

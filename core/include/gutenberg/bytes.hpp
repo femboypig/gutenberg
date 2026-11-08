@@ -13,10 +13,12 @@ namespace gutenberg {
 using Bytes = std::vector<std::uint8_t>;
 
 class ByteView {
-public:
+  public:
     explicit ByteView(std::span<const std::uint8_t> bytes, ErrorCode code = ErrorCode::verification)
         : bytes_(bytes), code_(code) {}
-    [[nodiscard]] std::size_t size() const noexcept { return bytes_.size(); }
+    [[nodiscard]] std::size_t size() const noexcept {
+        return bytes_.size();
+    }
     [[nodiscard]] std::uint8_t u8(std::size_t offset) const;
     [[nodiscard]] std::uint16_t u16(std::size_t offset) const;
     [[nodiscard]] std::uint32_t u32(std::size_t offset) const;
@@ -26,7 +28,8 @@ public:
     [[nodiscard]] std::uint32_t uleb(std::size_t& cursor) const;
     [[nodiscard]] std::int32_t sleb(std::size_t& cursor) const;
     void require(std::size_t offset, std::size_t count) const;
-private:
+
+  private:
     std::span<const std::uint8_t> bytes_;
     ErrorCode code_;
 };
@@ -34,4 +37,4 @@ private:
 [[nodiscard]] Bytes readFile(const std::filesystem::path& path, std::size_t limit = 512 * 1024 * 1024);
 [[nodiscard]] std::string utf8(std::u16string_view text);
 
-}
+} // namespace gutenberg

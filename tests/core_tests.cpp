@@ -1,5 +1,5 @@
-#include "test.hpp"
 #include "gutenberg/archive.hpp"
+#include "test.hpp"
 #include <limits>
 
 using namespace gutenberg;
@@ -32,7 +32,10 @@ TEST(unicode_surrogate_pairs) {
 
 TEST(empty_archive_and_invalid_directory) {
     Bytes bytes(22);
-    bytes[0] = 0x50; bytes[1] = 0x4b; bytes[2] = 5; bytes[3] = 6;
+    bytes[0] = 0x50;
+    bytes[1] = 0x4b;
+    bytes[2] = 5;
+    bytes[3] = 6;
     CHECK(Archive(bytes).entries().empty());
     bytes[16] = 23;
     test::rejects([&] { (void)Archive(bytes); });
@@ -41,8 +44,13 @@ TEST(empty_archive_and_invalid_directory) {
 int main() {
     unsigned failures = 0;
     for (const auto& [name, body] : test::cases()) {
-        try { body(); std::cout << "PASS " << name << '\n'; }
-        catch (const std::exception& error) { ++failures; std::cerr << "FAIL " << name << ": " << error.what() << '\n'; }
+        try {
+            body();
+            std::cout << "PASS " << name << '\n';
+        } catch (const std::exception& error) {
+            ++failures;
+            std::cerr << "FAIL " << name << ": " << error.what() << '\n';
+        }
     }
     std::cout << test::cases().size() << " cases, " << failures << " failures\n";
     return failures ? 1 : 0;
