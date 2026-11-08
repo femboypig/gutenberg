@@ -19,6 +19,7 @@ using namespace gutenberg;
     NSTimer* _timer;
     std::atomic_bool _pumpPending;
     std::atomic_bool _closing;
+    UIView* _controls;
 }
 - (instancetype)initWithApp:(GBInstalledApp*)app {
     if ((self = [super init])) {
@@ -34,14 +35,32 @@ using namespace gutenberg;
     [super viewDidLoad];
     self.title = _app.name;
     self.view.backgroundColor = UIColor.systemBackgroundColor;
-    self.navigationItem.rightBarButtonItem =
-        [[UIBarButtonItem alloc] initWithImage:[UIImage systemImageNamed:@"terminal"]
+    UIBarButtonItem* logs = [[UIBarButtonItem alloc] initWithImage:[UIImage systemImageNamed:@"terminal"]
+                                                             style:UIBarButtonItemStylePlain
+                                                            target:self
+                                                            action:@selector(showLogs)];
+    UIBarButtonItem* controls =
+        [[UIBarButtonItem alloc] initWithImage:[UIImage systemImageNamed:@"gamecontroller"]
                                          style:UIBarButtonItemStylePlain
                                         target:self
-                                        action:@selector(showLogs)];
+                                        action:@selector(toggleControls)];
+    controls.accessibilityLabel = @"Toggle controls";
+    self.navigationItem.rightBarButtonItems = @[ logs, controls ];
     _canvas = [GBSceneView new];
     _canvas.translatesAutoresizingMaskIntoConstraints = NO;
     [self.view addSubview:_canvas];
+    _controls = [self makeControls];
+    _controls.translatesAutoresizingMaskIntoConstraints = NO;
+    _controls.hidden = YES;
+    [self.view addSubview:_controls];
+    [NSLayoutConstraint activateConstraints:@[
+        [_controls.trailingAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.trailingAnchor
+                                                 constant:-16],
+        [_controls.bottomAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.bottomAnchor
+                                               constant:-24],
+        [_controls.widthAnchor constraintEqualToConstant:156],
+        [_controls.heightAnchor constraintEqualToConstant:156]
+    ]];
     [NSLayoutConstraint activateConstraints:@[
         [_canvas.topAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.topAnchor],
         [_canvas.bottomAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.bottomAnchor],
@@ -113,6 +132,77 @@ using namespace gutenberg;
                                          owner->_pumpPending.store(false);
                                      });
                                  }];
+}
+- (BOOL)canBecomeFirstResponder {
+    return YES;
+}
+- (NSArray<UIKeyCommand*>*)keyCommands {
+    NSMutableArray<UIKeyCommand*>* commands = [NSMutableArray array];
+    for (NSString* input in
+         @[ UIKeyInputUpArrow, UIKeyInputDownArrow, UIKeyInputLeftArrow, UIKeyInputRightArrow, @"\r", @" " ])
+        [commands addObject:[UIKeyCommand keyCommandWithInput:input
+                                                modifierFlags:0
+                                                       action:@selector(keyCommand:)]];
+    return commands;
+}
+- (void)keyCommand:(UIKeyCommand*)command {
+    const int code = [command.input isEqualToString:UIKeyInputUpArrow]      ? 19
+                     : [command.input isEqualToString:UIKeyInputDownArrow]  ? 20
+                     : [command.input isEqualToString:UIKeyInputLeftArrow]  ? 21
+                     : [command.input isEqualToString:UIKeyInputRightArrow] ? 22
+                     : [command.input isEqualToString:@" "]                 ? 62
+                                                                            : 66;
+    [self perform:[code](AndroidSession& session) {
+        session.key(code, true);
+        session.key(code, false);
+    }];
+}
+- (UIView*)makeControls {
+    UIStackView* vertical = [UIStackView new];
+    vertical.axis = UILayoutConstraintAxisVertical;
+    vertical.distribution = UIStackViewDistributionFillEqually;
+    vertical.spacing = 4;
+    NSArray<NSArray*>* rows = @[ @[ @0, @19, @0 ], @[ @21, @23, @22 ], @[ @0, @20, @0 ] ];
+    NSDictionary* labels = @{@19 : @"↑", @20 : @"↓", @21 : @"←", @22 : @"→", @23 : @"●"};
+    NSDictionary* names = @{@19 : @"Up", @20 : @"Down", @21 : @"Left", @22 : @"Right", @23 : @"Select"};
+    for (NSArray<NSNumber*>* codes in rows) {
+        UIStackView* row = [UIStackView new];
+        row.distribution = UIStackViewDistributionFillEqually;
+        row.spacing = 4;
+        for (NSNumber* code in codes) {
+            if (!code.intValue) {
+                [row addArrangedSubview:[UIView new]];
+                continue;
+            }
+            UIButton* button = [UIButton buttonWithType:UIButtonTypeSystem];
+            button.configuration = UIButtonConfiguration.borderedProminentButtonConfiguration;
+            button.tag = code.integerValue;
+            [button setTitle:labels[code] forState:UIControlStateNormal];
+            button.accessibilityLabel = names[code];
+            button.accessibilityIdentifier = [NSString stringWithFormat:@"gutenberg.key.%@", code];
+            [button addTarget:self action:@selector(keyDown:) forControlEvents:UIControlEventTouchDown];
+            [button addTarget:self
+                          action:@selector(keyUp:)
+                forControlEvents:UIControlEventTouchUpInside | UIControlEventTouchUpOutside |
+                                 UIControlEventTouchCancel];
+            [row addArrangedSubview:button];
+        }
+        [vertical addArrangedSubview:row];
+    }
+    return vertical;
+}
+- (void)toggleControls {
+    _controls.hidden = !_controls.hidden;
+    if (!_controls.hidden)
+        [self.view bringSubviewToFront:_controls];
+}
+- (void)keyDown:(UIButton*)button {
+    const int code = static_cast<int>(button.tag);
+    [self perform:[code](AndroidSession& s) { s.key(code, true); }];
+}
+- (void)keyUp:(UIButton*)button {
+    const int code = static_cast<int>(button.tag);
+    [self perform:[code](AndroidSession& s) { s.key(code, false); }];
 }
 - (std::shared_ptr<AndroidSession>)session {
     std::lock_guard lock(_sessionMutex);
