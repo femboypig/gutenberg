@@ -17,7 +17,11 @@ enum class ErrorCode {
     missing_class,
     missing_method,
     guest_exception,
-    cancelled
+    cancelled,
+    network_timeout,
+    network_dns,
+    network_connect,
+    network_tls
 };
 
 class Error final : public std::runtime_error {

@@ -435,7 +435,8 @@ void installJavaRuntime(Runtime& vm, JavaServices services) {
     }
     installJavaCollections(vm);
     installJavaNumbers(vm);
-    installJavaIo(vm, std::move(services));
+    installJavaIo(vm, services);
+    installJavaNetwork(vm, std::move(services));
 }
 
 } // namespace gutenberg

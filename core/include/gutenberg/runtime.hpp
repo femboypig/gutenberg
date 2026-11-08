@@ -82,6 +82,9 @@ class Runtime {
     void cancel() noexcept {
         cancelled_.store(true, std::memory_order_relaxed);
     }
+    [[nodiscard]] bool isCancelled() const noexcept {
+        return cancelled_.load(std::memory_order_relaxed);
+    }
     void resetCancellation() noexcept {
         cancelled_.store(false, std::memory_order_relaxed);
     }

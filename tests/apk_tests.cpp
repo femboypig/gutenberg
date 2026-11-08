@@ -41,6 +41,13 @@ int main(int argc, char** argv) {
         AndroidHost host;
         Directory directory;
         host.dataDirectory = directory.path;
+        host.http = [](const HttpRequest& request, const std::function<bool()>& cancelled) {
+            require(request.url == "http://127.0.0.1:8765/message", "HTTP target");
+            require(!cancelled(), "unexpected cancellation");
+            const std::string body = "network message\n";
+            return HttpResponse{
+                200, {{"Content-Type", "text/plain"}}, Bytes(body.begin(), body.end()), request.url};
+        };
         host.present = [&](const Scene& scene) {
             require(scene.root != 0, "missing content view");
             ++presentations;
@@ -61,6 +68,8 @@ int main(int argc, char** argv) {
         require(preferences.at("counter/value") == "I:1", "preference write");
         session.pumpTasks();
         require(session.scene().title == "Handler ready", "handler callback");
+        session.click(find(session.scene(), "Fetch network"));
+        (void)find(session.scene(), "HTTP 200: network message");
         session.pause();
         session.resume();
         session.stop();

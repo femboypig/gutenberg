@@ -7,6 +7,41 @@
 namespace gutenberg {
 
 void AndroidSession::installServices() {
+    vm_.defineClass("Landroid/os/StrictMode;");
+    vm_.defineClass("Landroid/os/StrictMode$ThreadPolicy;");
+    vm_.defineClass("Landroid/os/StrictMode$ThreadPolicy$Builder;");
+    vm_.defineClass("Landroid/os/NetworkOnMainThreadException;", "Ljava/lang/RuntimeException;");
+    const auto initialPolicy = vm_.allocate("Landroid/os/StrictMode$ThreadPolicy;");
+    vm_.object(initialPolicy).fields["allowNetwork"] = Value::integer(package_->info().targetSdk < 11);
+    vm_.putStatic({"Landroid/os/StrictMode;", "threadPolicy", "Landroid/os/StrictMode$ThreadPolicy;"},
+                  initialPolicy);
+    vm_.bind("Landroid/os/StrictMode$ThreadPolicy$Builder;", "<init>", "()V",
+             [](Runtime&, Arguments) { return Value{}; });
+    for (const auto* name : {"permitAll", "permitNetwork"})
+        vm_.bind("Landroid/os/StrictMode$ThreadPolicy$Builder;", name,
+                 "()Landroid/os/StrictMode$ThreadPolicy$Builder;", [](Runtime& r, Arguments a) {
+                     r.object(a[0]).fields["allowNetwork"] = Value::integer(1);
+                     return a[0];
+                 });
+    vm_.bind("Landroid/os/StrictMode$ThreadPolicy$Builder;", "build",
+             "()Landroid/os/StrictMode$ThreadPolicy;", [](Runtime& r, Arguments a) {
+                 const auto policy = r.allocate("Landroid/os/StrictMode$ThreadPolicy;");
+                 r.object(policy).fields["allowNetwork"] = r.object(a[0]).fields["allowNetwork"];
+                 return policy;
+             });
+    vm_.bind("Landroid/os/StrictMode;", "setThreadPolicy", "(Landroid/os/StrictMode$ThreadPolicy;)V",
+             [](Runtime& r, Arguments a) {
+                 (void)r.object(a[0]);
+                 r.putStatic(
+                     {"Landroid/os/StrictMode;", "threadPolicy", "Landroid/os/StrictMode$ThreadPolicy;"},
+                     a[0]);
+                 return Value{};
+             });
+    vm_.bind("Landroid/os/StrictMode;", "getThreadPolicy", "()Landroid/os/StrictMode$ThreadPolicy;",
+             [](Runtime& r, Arguments) {
+                 return r.getStatic(
+                     {"Landroid/os/StrictMode;", "threadPolicy", "Landroid/os/StrictMode$ThreadPolicy;"});
+             });
     for (const auto* type :
          {"Landroid/os/Bundle;", "Landroid/content/Intent;", "Landroid/net/Uri;", "Landroid/widget/Toast;",
           "Landroid/util/Log;", "Landroid/graphics/Color;", "Landroid/os/Build;",

@@ -9,6 +9,11 @@ AndroidSession::AndroidSession(std::shared_ptr<const Package> package, AndroidHo
     if (!host_.dataDirectory.empty())
         services.files = std::make_shared<FileSandbox>(host_.dataDirectory, package_->info().id);
     services.asset = [package = package_](std::string_view path) { return package->asset(path); };
+    services.http = host_.http;
+    services.internetPermission =
+        std::find(package_->info().permissions.begin(), package_->info().permissions.end(),
+                  "android.permission.INTERNET") != package_->info().permissions.end();
+    services.allowCleartext = package_->info().allowsCleartext;
     installJavaRuntime(vm_, std::move(services));
     vm_.logger = host_.log;
     installFramework();

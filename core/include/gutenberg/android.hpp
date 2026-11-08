@@ -37,6 +37,7 @@ struct Scene {
 
 struct AndroidHost {
     std::filesystem::path dataDirectory;
+    HttpTransport http;
     std::function<void(const Scene&)> present;
     std::function<void(std::string_view)> log;
     std::function<void(std::string_view)> toast;

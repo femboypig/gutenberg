@@ -247,6 +247,20 @@ std::string normalizeFilePath(std::string_view path) {
 }
 } // namespace
 
+Value memoryInputStream(Runtime& vm, Bytes bytes) {
+    const auto value = vm.allocate("Ljava/io/ByteArrayInputStream;");
+    vm.object(value).native = std::make_shared<MemoryInput>(std::move(bytes));
+    return value;
+}
+Value memoryOutputStream(Runtime& vm) {
+    const auto value = vm.allocate("Ljava/io/ByteArrayOutputStream;");
+    vm.object(value).native = std::make_shared<MemoryOutput>();
+    return value;
+}
+Bytes outputStreamBytes(Runtime& vm, Value stream) {
+    return resource<MemoryOutput>(vm, stream)->bytes;
+}
+
 void installJavaIo(Runtime& vm, JavaServices services) {
     vm.defineClass("Ljava/io/Closeable;");
     vm.defineClass("Ljava/io/Flushable;");

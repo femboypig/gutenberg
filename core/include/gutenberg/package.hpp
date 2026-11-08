@@ -26,6 +26,7 @@ struct PackageInfo {
     std::vector<std::string> permissions;
     std::vector<std::string> nativeLibraries;
     std::uint32_t iconResource = 0;
+    bool allowsCleartext = true;
 };
 
 class Package {

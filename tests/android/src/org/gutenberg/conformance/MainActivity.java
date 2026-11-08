@@ -3,6 +3,7 @@ package org.gutenberg.conformance;
 import android.app.Activity;
 import android.os.Bundle;
 import android.os.Handler;
+import android.os.StrictMode;
 import android.content.SharedPreferences;
 import android.view.View;
 import android.widget.EditText;
@@ -13,6 +14,8 @@ import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.net.HttpURLConnection;
+import java.net.URL;
 
 public final class MainActivity extends Activity {
     private int count;
@@ -37,6 +40,7 @@ public final class MainActivity extends Activity {
             throw new RuntimeException(failure);
         }
         setContentView(R.layout.main);
+        StrictMode.setThreadPolicy(new StrictMode.ThreadPolicy.Builder().permitNetwork().build());
         preferences = getSharedPreferences("counter", MODE_PRIVATE);
         count = preferences.getInt("value", 0);
         status = (TextView) findViewById(R.id.status);
@@ -51,6 +55,19 @@ public final class MainActivity extends Activity {
         });
         new Handler().post(new Runnable() {
             @Override public void run() { setTitle("Handler ready"); }
+        });
+        findViewById(R.id.fetch).setOnClickListener(new View.OnClickListener() {
+            @Override public void onClick(View view) {
+                try {
+                    HttpURLConnection connection = (HttpURLConnection) new URL("http://127.0.0.1:8765/message").openConnection();
+                    connection.setConnectTimeout(3000);
+                    connection.setReadTimeout(3000);
+                    BufferedReader reader = new BufferedReader(new InputStreamReader(connection.getInputStream()));
+                    status.setText("HTTP " + connection.getResponseCode() + ": " + reader.readLine());
+                    reader.close();
+                    connection.disconnect();
+                } catch (IOException failure) { status.setText("network error: " + failure.getMessage()); }
+            }
         });
     }
 }

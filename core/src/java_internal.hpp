@@ -6,4 +6,8 @@ void installJavaCollections(Runtime& runtime);
 void installJavaNumbers(Runtime& runtime);
 struct JavaServices;
 void installJavaIo(Runtime& runtime, JavaServices services);
+void installJavaNetwork(Runtime& runtime, JavaServices services);
+[[nodiscard]] Value memoryInputStream(Runtime& runtime, Bytes bytes);
+[[nodiscard]] Value memoryOutputStream(Runtime& runtime);
+[[nodiscard]] Bytes outputStreamBytes(Runtime& runtime, Value stream);
 } // namespace gutenberg

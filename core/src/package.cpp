@@ -30,19 +30,34 @@ Package::Package(Bytes bytes) : archive_(std::move(bytes)) {
     if (const auto* version = manifest.attribute("versionName"))
         info_.version = resourceText(*version);
     info_.label = info_.id;
-    for (const auto& child : manifest.children) {
+    for (const auto& child : manifest.children)
         if (child.name == "uses-sdk") {
             info_.minimumSdk = child.intAttribute("minSdkVersion", 1);
             info_.targetSdk = child.intAttribute("targetSdkVersion", info_.minimumSdk);
-        } else if (child.name == "uses-permission" || child.name == "uses-permission-sdk-23") {
+        }
+    auto boolean = [this](const XmlNode& node, std::string_view name, bool fallback) {
+        const auto* value = node.attribute(name);
+        if (!value)
+            return fallback;
+        if (value->isReference()) {
+            const auto resolved = resources_.resolve(value->data);
+            if (!resolved)
+                throw Error(ErrorCode::malformed_xml, "unresolved boolean manifest attribute");
+            return resolved->data != 0;
+        }
+        return value->data != 0;
+    };
+    for (const auto& child : manifest.children) {
+        if (child.name == "uses-permission" || child.name == "uses-permission-sdk-23") {
             info_.permissions.push_back(child.stringAttribute("name"));
         } else if (child.name == "application") {
             if (const auto* label = child.attribute("label"))
                 info_.label = resourceText(*label);
             info_.applicationClass = classDescriptor(child.stringAttribute("name"), info_.id);
+            info_.allowsCleartext = boolean(child, "usesCleartextTraffic", info_.targetSdk < 28);
             if (const auto* icon = child.attribute("icon"))
                 info_.iconResource = icon->data;
-            const bool applicationEnabled = child.intAttribute("enabled", 1) != 0;
+            const bool applicationEnabled = boolean(child, "enabled", true);
             for (const auto& activity : child.children) {
                 if (activity.name != "activity" && activity.name != "activity-alias")
                     continue;
@@ -51,7 +66,7 @@ Package::Package(Bytes bytes) : archive_(std::move(bytes)) {
                 component.target = activity.name == "activity-alias"
                                        ? classDescriptor(activity.stringAttribute("targetActivity"), info_.id)
                                        : component.name;
-                component.enabled = applicationEnabled && activity.intAttribute("enabled", 1) != 0;
+                component.enabled = applicationEnabled && boolean(activity, "enabled", true);
                 for (const auto& filter : activity.children) {
                     if (filter.name != "intent-filter")
                         continue;
