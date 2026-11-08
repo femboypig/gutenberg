@@ -1,4 +1,5 @@
 #include "gutenberg/runtime.hpp"
+#include "gutenberg/jit.hpp"
 #include <algorithm>
 #include <set>
 
@@ -55,8 +56,9 @@ MethodRef methodRef(std::string owner, std::string name, std::string descriptor)
     return result;
 }
 
-Runtime::Runtime(RuntimeLimits limits) : limits_(limits) {}
+Runtime::Runtime(RuntimeLimits limits) : limits_(limits), jit_(std::make_unique<JitEngine>()) {}
 Runtime::~Runtime() = default;
+JitEngine& Runtime::jit() noexcept { return *jit_; }
 
 void Runtime::defineClass(std::string type, std::string super, std::vector<std::string> interfaces) {
     if (classes_.contains(type)) throw Error(ErrorCode::verification, "duplicate class: " + type);
@@ -161,7 +163,10 @@ Value Runtime::invoke(const MethodRef& ref, Arguments arguments, InvokeKind kind
                     if (bool(method.access & 8) != (kind == InvokeKind::static_))
                         raise("Ljava/lang/IncompatibleClassChangeError;", key);
                     if (!method.code) raise(method.access & 0x100 ? "Ljava/lang/UnsatisfiedLinkError;" : "Ljava/lang/AbstractMethodError;", key);
-                    try { return execute(*info.dex, *method.code, arguments, key); }
+                    try {
+                        if (jitEnabled_) if (auto result = jit_->execute(*this, *method.code, arguments)) return *result;
+                        return execute(*info.dex, *method.code, arguments, key);
+                    }
                     catch (GuestException& error) { error.frames.push_back(key); throw; }
                 }
             }

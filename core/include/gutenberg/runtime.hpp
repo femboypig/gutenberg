@@ -12,6 +12,7 @@
 namespace gutenberg {
 
 class Runtime;
+class JitEngine;
 using Arguments = std::span<const Value>;
 using NativeMethod = std::function<Value(Runtime&, Arguments)>;
 enum class InvokeKind { direct, virtual_, static_, super, interface_ };
@@ -73,6 +74,8 @@ public:
     [[nodiscard]] std::size_t heapSize() const noexcept { return heap_.size(); }
     [[nodiscard]] std::uint64_t instructionCount() const noexcept { return instructions_; }
     [[nodiscard]] const RuntimeLimits& limits() const noexcept { return limits_; }
+    [[nodiscard]] JitEngine& jit() noexcept;
+    void enableJit(bool enabled) noexcept { jitEnabled_ = enabled; }
     std::function<void(std::string_view)> logger;
 private:
     struct ClassInfo {
@@ -94,6 +97,8 @@ private:
     std::atomic<bool> cancelled_ = false;
     std::uint64_t instructions_ = 0;
     std::size_t depth_ = 0;
+    std::unique_ptr<JitEngine> jit_;
+    bool jitEnabled_ = true;
 };
 
 [[nodiscard]] MethodRef methodRef(std::string owner, std::string name, std::string descriptor);
