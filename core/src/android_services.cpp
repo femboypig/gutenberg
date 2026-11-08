@@ -152,31 +152,6 @@ void AndroidSession::installServices() {
     vm_.putStatic({"Landroid/os/Build;", "MANUFACTURER", "Ljava/lang/String;"}, vm_.string("Gutenberg"));
     vm_.putStatic({"Landroid/os/Build$VERSION;", "SDK_INT", "I"}, Value::integer(26));
     vm_.putStatic({"Landroid/os/Build$VERSION;", "RELEASE", "Ljava/lang/String;"}, vm_.string("8.0"));
-    vm_.bind("Landroid/os/Looper;", "getMainLooper", "()Landroid/os/Looper;",
-             [](Runtime& r, Arguments) { return r.allocate("Landroid/os/Looper;"); });
-    vm_.bind("Landroid/os/Looper;", "myLooper", "()Landroid/os/Looper;",
-             [](Runtime& r, Arguments) { return r.allocate("Landroid/os/Looper;"); });
-    vm_.bind("Landroid/os/Handler;", "<init>", "()V", [](Runtime&, Arguments) { return Value{}; });
-    vm_.bind("Landroid/os/Handler;", "<init>", "(Landroid/os/Looper;)V",
-             [](Runtime&, Arguments) { return Value{}; });
-    auto post = [this](Runtime& r, Arguments a) {
-        if (a[1].isNull())
-            r.raise("Ljava/lang/NullPointerException;", "null runnable");
-        if (tasks_.size() >= 10000)
-            throw Error(ErrorCode::limit_exceeded, "handler queue limit exceeded");
-        const auto delay = a.size() == 4 ? std::bit_cast<std::int64_t>(argumentWide(a, 2)) : 0;
-        const auto bounded = std::clamp<std::int64_t>(delay, 0, 365LL * 24 * 60 * 60 * 1000);
-        tasks_.push_back({std::chrono::steady_clock::now() + std::chrono::milliseconds(bounded), a[1], a[0]});
-        return Value::integer(1);
-    };
-    vm_.bind("Landroid/os/Handler;", "post", "(Ljava/lang/Runnable;)Z", post);
-    vm_.bind("Landroid/os/Handler;", "postDelayed", "(Ljava/lang/Runnable;J)Z", post);
-    vm_.bind("Landroid/os/Handler;", "removeCallbacks", "(Ljava/lang/Runnable;)V",
-             [this](Runtime&, Arguments a) {
-                 std::erase_if(
-                     tasks_, [&](const Task& task) { return task.handler == a[0] && task.runnable == a[1]; });
-                 return Value{};
-             });
     vm_.bind("Landroid/app/Activity;", "runOnUiThread", "(Ljava/lang/Runnable;)V",
              [](Runtime& r, Arguments a) {
                  const Value args[]{a[1]};
@@ -255,26 +230,6 @@ void AndroidSession::installServices() {
         (void)commit(r, a);
         return Value{};
     });
-}
-
-void AndroidSession::pumpTasks() {
-    if (state_ != State::resumed)
-        return;
-    const auto now = std::chrono::steady_clock::now();
-    std::vector<Task> ready;
-    for (auto it = tasks_.begin(); it != tasks_.end() && ready.size() < 64;) {
-        if (it->due <= now) {
-            ready.push_back(*it);
-            it = tasks_.erase(it);
-        } else
-            ++it;
-    }
-    for (const auto& task : ready) {
-        const Value args[]{task.runnable};
-        (void)vm_.invoke("Ljava/lang/Runnable;", "run", "()V", args, InvokeKind::interface_);
-    }
-    if (!ready.empty())
-        publish();
 }
 
 } // namespace gutenberg

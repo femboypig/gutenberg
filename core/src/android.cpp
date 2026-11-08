@@ -21,6 +21,7 @@ AndroidSession::AndroidSession(std::shared_ptr<const Package> package, AndroidHo
     installResources();
     installDrawing();
     installServices();
+    installMessages();
     for (const auto& dex : package_->dexFiles())
         vm_.load(dex);
 }

@@ -3,6 +3,8 @@ package org.gutenberg.conformance;
 import android.app.Activity;
 import android.os.Bundle;
 import android.os.Handler;
+import android.os.Message;
+import android.os.Looper;
 import android.os.StrictMode;
 import android.content.SharedPreferences;
 import android.view.View;
@@ -25,6 +27,7 @@ public final class MainActivity extends Activity {
     private TextView status;
     private EditText input;
     private SharedPreferences preferences;
+    private boolean messageDelivered;
 
     @Override public void onCreate(Bundle savedState) {
         super.onCreate(savedState);
@@ -72,9 +75,25 @@ public final class MainActivity extends Activity {
         new Handler().post(new Runnable() {
             @Override public void run() { setTitle("Handler ready"); }
         });
+        final Handler messages = new Handler() {
+            @Override public void handleMessage(Message message) {
+                if (message.what != 41 || message.arg1 != 2 || message.arg2 != 3 || !"payload".equals(message.obj))
+                    throw new IllegalStateException("message delivery");
+                messageDelivered = true;
+            }
+        };
+        if (messages.getLooper() != Looper.myLooper() || Looper.myLooper() != Looper.getMainLooper())
+            throw new IllegalStateException("looper identity");
+        messages.sendEmptyMessage(99);
+        if (!messages.hasMessages(99)) throw new IllegalStateException("queued message lookup");
+        messages.removeMessages(99);
+        if (messages.hasMessages(99)) throw new IllegalStateException("message cancellation");
+        Message queued = messages.obtainMessage(41, 2, 3, "payload");
+        queued.sendToTarget();
         findViewById(R.id.fetch).setOnClickListener(new View.OnClickListener() {
             @Override public void onClick(View view) {
                 try {
+                    if (!messageDelivered) throw new IllegalStateException("missing handler message");
                     HttpURLConnection connection = (HttpURLConnection) new URL("http://127.0.0.1:8765/message").openConnection();
                     connection.setConnectTimeout(3000);
                     connection.setReadTimeout(3000);

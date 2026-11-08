@@ -93,6 +93,8 @@ class AndroidSession {
     void installServices();
     void installDrawing();
     void installResources();
+    void installMessages();
+    void enqueueMessage(Value handler, Value message, std::int64_t delayMs);
     void drawPending();
     void lifecycle(std::string name, std::string descriptor = "()V", std::vector<Value> extra = {});
     [[nodiscard]] Value inflateNode(const XmlNode& node, Value parent);
@@ -112,7 +114,7 @@ class AndroidSession {
     bool drawing_ = false;
     struct Task {
         std::chrono::steady_clock::time_point due;
-        Value runnable;
+        Value message;
         Value handler;
     };
     std::vector<Task> tasks_;
