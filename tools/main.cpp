@@ -1,7 +1,9 @@
 #include "gutenberg/dex.hpp"
 #include "gutenberg/java.hpp"
 #include "gutenberg/jit.hpp"
+#include "gutenberg/android.hpp"
 #include <charconv>
+#include <iomanip>
 #include <iostream>
 
 using namespace gutenberg;
@@ -13,6 +15,39 @@ int main(int argc, char** argv) {
             return 2;
         }
         const std::string command(argv[1]);
+        if (command == "inspect-apk" || command == "run-apk") {
+            auto package = std::make_shared<Package>(readFile(argv[2]));
+            const auto& info = package->info();
+            std::cout << "package: " << info.id << "\nlabel: " << info.label << "\nlauncher: " << info.launcher << "\ndex files: " << package->dexFiles().size() << '\n';
+            if (command == "inspect-apk") return 0;
+            AndroidHost host;
+            host.log = [](std::string_view message) { std::cout << "log: " << message << '\n'; };
+            host.toast = [](std::string_view message) { std::cout << "toast: " << message << '\n'; };
+            host.present = [](const Scene& scene) {
+                std::cout << "scene: " << std::quoted(scene.title) << '\n';
+                for (const auto& [handle, node] : scene.views) std::cout << "view " << handle << ' ' << node.androidId << ' ' << node.kind << ' ' << std::quoted(node.text) << '\n';
+            };
+            AndroidSession session(package, host); session.launch();
+            for (int n = 3; n < argc; ++n) {
+                const std::string option(argv[n]);
+                if (option == "--tick") session.pumpTasks();
+                else if (option == "--click" && n + 1 < argc) {
+                    const std::string text(argv[++n]); std::uint64_t target = 0;
+                    for (const auto& [handle, node] : session.scene().views) if (node.text == text) { target = handle; break; }
+                    if (!target) throw Error(ErrorCode::verification, "no view with text: " + text);
+                    session.click(target);
+                } else if (option == "--input" && n + 2 < argc) {
+                    const std::string_view number(argv[++n]); std::size_t index = 0;
+                    const auto [end, error] = std::from_chars(number.data(), number.data() + number.size(), index);
+                    if (error != std::errc{} || end != number.data() + number.size()) throw Error(ErrorCode::verification, "invalid input index");
+                    const std::string text(argv[++n]); std::uint64_t target = 0;
+                    for (const auto& [handle, node] : session.scene().views) if (node.kind == "Landroid/widget/EditText;") { if (!index--) { target = handle; break; } }
+                    if (!target) throw Error(ErrorCode::verification, "input index not found");
+                    session.changeText(target, text);
+                } else throw Error(ErrorCode::verification, "unknown apk option: " + option);
+            }
+            session.stop(); return 0;
+        }
         auto dex = std::make_shared<DexFile>(readFile(argv[2]));
         if (command == "inspect-dex") {
             std::cout << "dex " << dex->version() << ": " << dex->classes().size() << " classes, " << dex->methods().size() << " method references\n";
