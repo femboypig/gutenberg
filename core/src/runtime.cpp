@@ -204,7 +204,7 @@ Value Runtime::invoke(const MethodRef& ref, Arguments arguments, InvokeKind kind
             raise("Ljava/lang/NullPointerException;", ref.key());
         const auto& receiver = object(arguments.front());
         if (kind == InvokeKind::virtual_ || kind == InvokeKind::interface_)
-            owner = receiver.type;
+            owner = receiver.type.starts_with('[') ? "Ljava/lang/Object;" : receiver.type;
     } else
         initialize(owner);
     std::unordered_set<std::string> visited;

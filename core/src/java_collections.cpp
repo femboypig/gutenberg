@@ -62,13 +62,17 @@ void installJavaCollections(Runtime& vm) {
     vm.defineClass("Ljava/util/NoSuchElementException;", "Ljava/lang/RuntimeException;");
     vm.defineClass("Ljava/util/AbstractCollection;", "Ljava/lang/Object;", {"Ljava/util/Collection;"});
     vm.defineClass("Ljava/util/AbstractList;", "Ljava/util/AbstractCollection;", {"Ljava/util/List;"});
-    vm.defineClass("Ljava/util/ArrayList;", "Ljava/util/AbstractList;");
-    vm.defineClass("Ljava/util/LinkedList;", "Ljava/util/AbstractList;");
+    vm.defineClass("Ljava/util/ArrayList;", "Ljava/util/AbstractList;",
+                   {"Ljava/lang/Cloneable;", "Ljava/io/Serializable;"});
+    vm.defineClass("Ljava/util/LinkedList;", "Ljava/util/AbstractList;",
+                   {"Ljava/lang/Cloneable;", "Ljava/io/Serializable;"});
     vm.defineClass("Ljava/util/AbstractSet;", "Ljava/util/AbstractCollection;", {"Ljava/util/Set;"});
-    vm.defineClass("Ljava/util/HashSet;", "Ljava/util/AbstractSet;");
+    vm.defineClass("Ljava/util/HashSet;", "Ljava/util/AbstractSet;",
+                   {"Ljava/lang/Cloneable;", "Ljava/io/Serializable;"});
     vm.defineClass("Ljava/util/LinkedHashSet;", "Ljava/util/HashSet;");
     vm.defineClass("Ljava/util/AbstractMap;", "Ljava/lang/Object;", {"Ljava/util/Map;"});
-    vm.defineClass("Ljava/util/HashMap;", "Ljava/util/AbstractMap;");
+    vm.defineClass("Ljava/util/HashMap;", "Ljava/util/AbstractMap;",
+                   {"Ljava/lang/Cloneable;", "Ljava/io/Serializable;"});
     vm.defineClass("Ljava/util/LinkedHashMap;", "Ljava/util/HashMap;");
     vm.defineClass("Ljava/util/Map$Entry;");
     vm.defineClass(iteratorType, "Ljava/lang/Object;", {"Ljava/util/Iterator;"});

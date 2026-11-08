@@ -37,3 +37,19 @@ TEST(java_unavailable_method_raises_linkage_error) {
         CHECK(vm.assignable(vm.object(error.value).type, "Ljava/lang/LinkageError;"));
     }
 }
+
+TEST(java_clone_requires_cloneable_and_accounts_array_storage) {
+    Runtime vm(RuntimeLimits{10000, 100, 5, 100});
+    installJavaRuntime(vm);
+    const auto plain = vm.allocate("Ljava/lang/Object;");
+    const Value plainArgs[]{plain};
+    try {
+        (void)vm.invoke("Ljava/lang/Object;", "clone", "()Ljava/lang/Object;", plainArgs);
+        CHECK(false);
+    } catch (const GuestException& error) {
+        CHECK(vm.object(error.value).type == "Ljava/lang/CloneNotSupportedException;");
+    }
+    const auto array = vm.array("[I", 3);
+    const Value arrayArgs[]{array};
+    test::rejects([&] { (void)vm.invoke("Ljava/lang/Object;", "clone", "()Ljava/lang/Object;", arrayArgs); });
+}

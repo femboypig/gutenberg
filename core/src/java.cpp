@@ -92,7 +92,8 @@ void installJavaRuntime(Runtime& vm, JavaServices services) {
         {"SecurityException", "RuntimeException"},
         {"NumberFormatException", "IllegalArgumentException"},
         {"ClassNotFoundException", "Exception"},
-        {"InterruptedException", "Exception"}};
+        {"InterruptedException", "Exception"},
+        {"CloneNotSupportedException", "Exception"}};
     for (const auto& [name, parent] : exceptions) {
         const auto owner = "Ljava/lang/" + std::string(name) + ";";
         vm.defineClass(owner, "Ljava/lang/" + std::string(parent) + ";");
@@ -124,7 +125,11 @@ void installJavaRuntime(Runtime& vm, JavaServices services) {
     });
     vm.bind("Ljava/lang/Object;", "clone", "()Ljava/lang/Object;", [](Runtime& r, Arguments a) {
         const auto copy = r.object(a[0]);
-        const auto result = r.allocate(copy.type);
+        if (!r.assignable(copy.type, "Ljava/lang/Cloneable;"))
+            r.raise("Ljava/lang/CloneNotSupportedException;", copy.type);
+        const auto result = copy.type.starts_with('[')
+                                ? r.array(copy.type, static_cast<std::int32_t>(copy.elements.size()))
+                                : r.allocate(copy.type);
         r.object(result) = copy;
         return result;
     });
