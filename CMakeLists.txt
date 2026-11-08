@@ -39,6 +39,7 @@ if(CMAKE_SYSTEM_NAME STREQUAL "iOS")
     add_executable(Gutenberg MACOSX_BUNDLE
         ios/App/main.mm
         ios/App/GBAppDelegate.mm
+        ios/App/GBSceneDelegate.mm
         ios/Library/GBLibraryStore.mm
         ios/Library/GBLibraryController.mm
         ios/Runtime/GBSceneView.mm

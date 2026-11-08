@@ -1,15 +1,18 @@
 #import "GBAppDelegate.h"
 #import "../Library/GBLibraryController.h"
+#import "GBSceneDelegate.h"
 
 @implementation GBAppDelegate
 - (BOOL)application:(UIApplication*)application didFinishLaunchingWithOptions:(NSDictionary*)options {
-    self.window = [[UIWindow alloc] initWithFrame:UIScreen.mainScreen.bounds];
-    GBLibraryController* library = [GBLibraryController new];
-    UINavigationController* navigation = [[UINavigationController alloc] initWithRootViewController:library];
-    navigation.view.tintColor = [UIColor colorWithRed:0.10 green:0.53 blue:0.40 alpha:1];
-    self.window.rootViewController = navigation;
-    [self.window makeKeyAndVisible];
     return YES;
+}
+- (UISceneConfiguration*)application:(UIApplication*)application
+    configurationForConnectingSceneSession:(UISceneSession*)session
+                                   options:(UISceneConnectionOptions*)options {
+    UISceneConfiguration* configuration = [[UISceneConfiguration alloc] initWithName:@"Default"
+                                                                         sessionRole:session.role];
+    configuration.delegateClass = GBSceneDelegate.class;
+    return configuration;
 }
 - (BOOL)application:(UIApplication*)application
             openURL:(NSURL*)url
