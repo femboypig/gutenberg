@@ -1,5 +1,6 @@
 #include "gutenberg/dex.hpp"
 #include "gutenberg/java.hpp"
+#include "gutenberg/jit.hpp"
 #include <charconv>
 #include <iostream>
 
@@ -44,6 +45,7 @@ int main(int argc, char** argv) {
         else if (ref.returnType.front() == 'L' || ref.returnType.front() == '[') std::cout << javaString(vm, result);
         else std::cout << result.i32();
         std::cout << "\ninstructions: " << vm.instructionCount() << "\nobjects: " << vm.heapSize() << '\n';
+        std::cout << "jit methods: " << vm.jit().statistics().compiledMethods << "\njit executions: " << vm.jit().statistics().executions << '\n';
         return 0;
     } catch (const GuestException& error) {
         std::cerr << error.what() << '\n';

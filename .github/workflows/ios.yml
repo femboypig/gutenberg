@@ -20,6 +20,12 @@ jobs:
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
+      - name: test runtime on apple silicon
+        run: |
+          uname -m
+          cmake -S . -B build-native -G Ninja -DGUTENBERG_SANITIZE=ON -DCMAKE_BUILD_TYPE=Debug
+          cmake --build build-native --parallel 2
+          ctest --test-dir build-native --output-on-failure
       - name: configure device build
         run: >-
           cmake -S . -B build-ios -G Xcode
@@ -66,4 +72,5 @@ jobs:
             build-ios/device.log
             build-simulator/simulator.log
             build-simulator/library.png
+            build-native/Testing/Temporary/LastTest.log
           retention-days: 7
