@@ -299,6 +299,88 @@
     [NSFileManager.defaultManager removeItemAtURL:directory error:nil];
 }
 
+- (void)testUnchangedCanvasGameAdvancesThroughDirectionalControls {
+    NSURL* fixture = [[NSBundle bundleForClass:self.class] URLForResource:@"snake" withExtension:@"apk"];
+    XCTAssertNotNil(fixture);
+    NSURL* directory =
+        [NSURL fileURLWithPath:[NSTemporaryDirectory() stringByAppendingPathComponent:NSUUID.UUID.UUIDString]
+                   isDirectory:YES];
+    GBLibraryStore* store = [[GBLibraryStore alloc] initWithDirectory:directory];
+    XCTestExpectation* imported = [self expectationWithDescription:@"canvas apk imported"];
+    __block GBInstalledApp* app;
+    [store importURL:fixture
+          completion:^(GBInstalledApp* result, NSError* error) {
+              XCTAssertNil(error);
+              app = result;
+              [imported fulfill];
+          }];
+    [self waitForExpectations:@[ imported ] timeout:15];
+    UIWindow* window = UIApplication.sharedApplication.delegate.window;
+    UIViewController* previous = window.rootViewController;
+    UINavigationController* navigation =
+        [[UINavigationController alloc] initWithRootViewController:[UIViewController new]];
+    window.rootViewController = navigation;
+    GBRuntimeController* runtime = [[GBRuntimeController alloc] initWithApp:app];
+    [navigation pushViewController:runtime animated:NO];
+    __block GBDrawingView* drawing = nil;
+    XCTAssertTrue([self waitFor:^BOOL {
+        drawing = (GBDrawingView*)[self findView:runtime.view
+                                        matching:^BOOL(UIView* view) {
+                                            return [view isKindOfClass:GBDrawingView.class];
+                                        }];
+        return drawing != nil && drawing.bounds.size.width > 0;
+    }]);
+    UIBarButtonItem* controls = runtime.navigationItem.rightBarButtonItems.lastObject;
+    [UIApplication.sharedApplication sendAction:controls.action
+                                             to:controls.target
+                                           from:controls
+                                       forEvent:nil];
+    UIButton* up =
+        (UIButton*)[self findView:runtime.view
+                         matching:^BOOL(UIView* view) {
+                             return [view.accessibilityIdentifier isEqualToString:@"gutenberg.key.19"];
+                         }];
+    XCTAssertNotNil(up);
+    [self assertVisible:up inController:runtime];
+    [up sendActionsForControlEvents:UIControlEventTouchDown];
+    [up sendActionsForControlEvents:UIControlEventTouchUpInside];
+    __block NSData* firstFrame = nil;
+    XCTAssertTrue([self waitFor:^BOOL {
+        NSUInteger ignored = 0;
+        NSData* frame = [self canvasPixels:drawing bluePixels:&ignored];
+        const auto* pixels = static_cast<const uint8_t*>(frame.bytes);
+        NSUInteger visible = 0;
+        for (NSUInteger n = 0; n < frame.length / 4; ++n)
+            if (pixels[n * 4 + 3])
+                ++visible;
+        if (visible > 1000)
+            firstFrame = frame;
+        return firstFrame != nil;
+    }]);
+    XCTAssertTrue([self waitFor:^BOOL {
+        NSUInteger ignored = 0;
+        NSData* frame = [self canvasPixels:drawing bluePixels:&ignored];
+        return frame != nil && ![frame isEqualToData:firstFrame];
+    }]);
+    UIGraphicsImageRenderer* renderer = [[UIGraphicsImageRenderer alloc] initWithBounds:window.bounds];
+    UIImage* image = [renderer imageWithActions:^(UIGraphicsImageRendererContext* context) {
+        [window drawViewHierarchyInRect:window.bounds afterScreenUpdates:YES];
+    }];
+    XCTAttachment* attachment = [XCTAttachment attachmentWithImage:image];
+    attachment.lifetime = XCTAttachmentLifetimeKeepAlways;
+    attachment.name = @"unchanged-canvas-game";
+    [self addAttachment:attachment];
+    NSURL* documents = [NSFileManager.defaultManager URLsForDirectory:NSDocumentDirectory
+                                                            inDomains:NSUserDomainMask]
+                           .firstObject;
+    [UIImagePNGRepresentation(image)
+        writeToURL:[documents URLByAppendingPathComponent:@"canvas-validation.png"]
+        atomically:YES];
+    [navigation popViewControllerAnimated:NO];
+    window.rootViewController = previous;
+    [NSFileManager.defaultManager removeItemAtURL:directory error:nil];
+}
+
 - (void)testMalformedApkDoesNotEnterLibrary {
     NSURL* directory =
         [NSURL fileURLWithPath:[NSTemporaryDirectory() stringByAppendingPathComponent:NSUUID.UUID.UUIDString]
