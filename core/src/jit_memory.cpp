@@ -6,6 +6,7 @@
 #if defined(__APPLE__)
 #include <TargetConditionals.h>
 #include <dlfcn.h>
+#include <libkern/OSCacheControl.h>
 #endif
 
 namespace gutenberg::jit {
@@ -44,9 +45,11 @@ std::unique_ptr<ExecutableMemory> ExecutableMemory::create(std::span<const std::
     if (appleJit && writeProtect) writeProtect(0);
 #endif
     std::memcpy(memory, code.data(), code.size());
-    __builtin___clear_cache(static_cast<char*>(memory), static_cast<char*>(memory) + code.size());
 #if defined(__APPLE__)
+    sys_icache_invalidate(memory, code.size());
     if (appleJit && writeProtect) writeProtect(1);
+#else
+    __builtin___clear_cache(static_cast<char*>(memory), static_cast<char*>(memory) + code.size());
 #endif
     if (!appleJit && mprotect(memory, result->size_, PROT_READ | PROT_EXEC) != 0) return nullptr;
     return result;
