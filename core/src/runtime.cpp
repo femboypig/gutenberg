@@ -5,45 +5,6 @@
 
 namespace gutenberg {
 
-std::u16string utf16(std::string_view text) {
-    std::u16string result;
-    for (std::size_t i = 0; i < text.size();) {
-        const auto first = static_cast<std::uint8_t>(text[i++]);
-        std::uint32_t value;
-        unsigned count;
-        if (first < 0x80) {
-            value = first;
-            count = 0;
-        } else if ((first & 0xe0) == 0xc0) {
-            value = first & 0x1f;
-            count = 1;
-        } else if ((first & 0xf0) == 0xe0) {
-            value = first & 0xf;
-            count = 2;
-        } else if ((first & 0xf8) == 0xf0) {
-            value = first & 7;
-            count = 3;
-        } else
-            throw Error(ErrorCode::verification, "invalid utf-8 leading byte");
-        for (unsigned n = 0; n < count; ++n) {
-            if (i == text.size() || (static_cast<std::uint8_t>(text[i]) & 0xc0) != 0x80)
-                throw Error(ErrorCode::verification, "invalid utf-8 continuation");
-            value = (value << 6) | (static_cast<std::uint8_t>(text[i++]) & 0x3f);
-        }
-        if ((count == 1 && value < 0x80) || (count == 2 && value < 0x800) ||
-            (count == 3 && value < 0x10000) || value > 0x10ffff || (value >= 0xd800 && value <= 0xdfff))
-            throw Error(ErrorCode::verification, "invalid utf-8 scalar");
-        if (value < 0x10000)
-            result += static_cast<char16_t>(value);
-        else {
-            value -= 0x10000;
-            result += static_cast<char16_t>(0xd800 | (value >> 10));
-            result += static_cast<char16_t>(0xdc00 | (value & 0x3ff));
-        }
-    }
-    return result;
-}
-
 MethodRef methodRef(std::string owner, std::string name, std::string descriptor) {
     MethodRef result{std::move(owner), std::move(name), std::move(descriptor), {}, {}};
     const auto& text = result.descriptor;

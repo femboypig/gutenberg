@@ -38,5 +38,6 @@ class ByteView {
 [[nodiscard]] std::string utf8(std::u16string_view text);
 [[nodiscard]] std::string utf8Replacing(std::u16string_view text, char16_t replacement = u'\ufffd');
 [[nodiscard]] std::u16string utf16Replacing(std::string_view text);
+[[nodiscard]] std::u16string utf16(std::string_view text);
 
 } // namespace gutenberg

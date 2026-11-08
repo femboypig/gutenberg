@@ -131,6 +131,5 @@ class Runtime {
 };
 
 [[nodiscard]] MethodRef methodRef(std::string owner, std::string name, std::string descriptor);
-[[nodiscard]] std::u16string utf16(std::string_view text);
 
 } // namespace gutenberg
