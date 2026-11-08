@@ -92,6 +92,23 @@ void installJavaNumbers(Runtime& vm) {
                     if (first == text.npos)
                         r.raise("Ljava/lang/NumberFormatException;", text);
                     text = text.substr(first, last - first + 1);
+                    const auto unsignedText =
+                        std::string_view(text).substr(text.front() == '+' || text.front() == '-' ? 1 : 0);
+                    if (unsignedText == "NaN")
+                        return double_ ? Value::floating(std::numeric_limits<double>::quiet_NaN())
+                                       : Value::floating(std::numeric_limits<float>::quiet_NaN());
+                    if (unsignedText == "Infinity") {
+                        const auto value = text.front() == '-' ? -std::numeric_limits<double>::infinity()
+                                                               : std::numeric_limits<double>::infinity();
+                        return double_ ? Value::floating(value) : Value::floating(static_cast<float>(value));
+                    }
+                    if (unsignedText.empty() ||
+                        !((unsignedText.front() >= '0' && unsignedText.front() <= '9') ||
+                          unsignedText.front() == '.'))
+                        r.raise("Ljava/lang/NumberFormatException;", text);
+                    if ((unsignedText.starts_with("0x") || unsignedText.starts_with("0X")) &&
+                        unsignedText.find_first_of("pP") == unsignedText.npos)
+                        r.raise("Ljava/lang/NumberFormatException;", text);
                     if (text.back() == 'f' || text.back() == 'F' || text.back() == 'd' || text.back() == 'D')
                         text.pop_back();
                     char* end = nullptr;

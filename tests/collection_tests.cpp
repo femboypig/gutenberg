@@ -1,5 +1,6 @@
 #include "gutenberg/java.hpp"
 #include "test.hpp"
+#include <cmath>
 
 using namespace gutenberg;
 namespace {
@@ -100,4 +101,27 @@ TEST(java_random_matches_seeded_jdk_sequence) {
                InvokeKind::direct);
     CHECK(call(vm, "Ljava/util/Random;", "nextInt", "()I", {random}).i32() == -1155484576);
     CHECK(call(vm, "Ljava/util/Random;", "nextInt", "()I", {random}).i32() == -723955400);
+}
+
+TEST(java_floating_parser_uses_java_special_values) {
+    Runtime vm;
+    installJavaRuntime(vm);
+    CHECK(std::isnan(call(vm, "Ljava/lang/Double;", "parseDouble", "(Ljava/lang/String;)D",
+                          {vm.string("+NaN")}, InvokeKind::static_)
+                         .f64()));
+    CHECK(std::isinf(call(vm, "Ljava/lang/Double;", "parseDouble", "(Ljava/lang/String;)D",
+                          {vm.string("Infinity")}, InvokeKind::static_)
+                         .f64()));
+    CHECK(call(vm, "Ljava/lang/Double;", "parseDouble", "(Ljava/lang/String;)D", {vm.string("1f")},
+               InvokeKind::static_)
+              .f64() == 1);
+    for (const auto* text : {"NaNf", "inf", "infinity", "0x1"}) {
+        try {
+            (void)call(vm, "Ljava/lang/Double;", "parseDouble", "(Ljava/lang/String;)D", {vm.string(text)},
+                       InvokeKind::static_);
+            CHECK(false);
+        } catch (const GuestException& error) {
+            CHECK(vm.object(error.value).type == "Ljava/lang/NumberFormatException;");
+        }
+    }
 }
