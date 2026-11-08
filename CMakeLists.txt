@@ -74,7 +74,7 @@ if(CMAKE_SYSTEM_NAME STREQUAL "iOS")
             set_source_files_properties("${GUTENBERG_EXTERNAL_TEST_APK}" PROPERTIES MACOSX_PACKAGE_LOCATION Resources)
         endif()
         target_compile_options(GutenbergTests PRIVATE -fobjc-arc)
-        target_link_libraries(GutenbergTests PRIVATE "-framework UIKit")
+        target_link_libraries(GutenbergTests PRIVATE "-framework UIKit" "-framework CoreGraphics")
         set_target_properties(GutenbergTests PROPERTIES
             XCODE_GENERATE_SCHEME YES
             XCODE_ATTRIBUTE_PRODUCT_BUNDLE_IDENTIFIER "app.gutenberg.tests"
