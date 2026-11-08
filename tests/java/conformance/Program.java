@@ -1,0 +1,60 @@
+package conformance;
+
+public final class Program {
+    private static final int seed = initialize();
+    private static int initialize() { return 7; }
+
+    interface Operation { int apply(int value); }
+    static class Parent { int value; Parent(int value) { this.value = value; } int read() { return value; } }
+    static final class Child extends Parent implements Operation {
+        Child(int value) { super(value); }
+        @Override int read() { return super.read() + 1; }
+        @Override public int apply(int value) { return read() * value; }
+    }
+
+    private static void require(boolean condition, String message) {
+        if (!condition) throw new IllegalStateException(message);
+    }
+    private static int packed(int n) {
+        switch (n) { case 1: return 10; case 2: return 20; case 3: return 30; default: return -1; }
+    }
+    private static int sparse(int n) {
+        switch (n) { case -100: return 2; case 500: return 3; case 90000: return 5; default: return 0; }
+    }
+    private static int divide(int n, int divisor) {
+        try { return n / divisor; } catch (ArithmeticException expected) { return 17; }
+    }
+    private static long wide(long n, long amount) { return (n + amount) ^ 0x1234567890abcdefL; }
+
+    public static int run() {
+        int sum = 0;
+        for (int i = 1; i <= 100; i++) sum += i;
+        require(sum == 5050, "loop");
+        require(seed == 7, "class initialization");
+        require(packed(2) == 20 && packed(9) == -1, "packed switch");
+        require(sparse(90000) == 5 && sparse(-100) == 2, "sparse switch");
+        require(divide(1, 0) == 17, "catch handler");
+        require(wide(Long.MAX_VALUE, 1) == (Long.MIN_VALUE ^ 0x1234567890abcdefL), "wide arithmetic");
+        int[] values = {2, 3, 5, 7, 11};
+        values[2] *= 4;
+        require(values.length == 5 && values[2] == 20, "array payload");
+        int[] copy = new int[5];
+        System.arraycopy(values, 0, copy, 0, 5);
+        require(copy[4] == 11, "arraycopy");
+        Parent parent = new Child(6);
+        require(parent.read() == 7, "virtual dispatch");
+        require(((Operation) parent).apply(3) == 21, "interface dispatch");
+        require(parent instanceof Operation, "instanceof");
+        require(Math.abs(-9) == 9 && Math.max(3, 8) == 8, "math");
+        require((int) Math.sqrt(81.0) == 9, "double conversion");
+        String text = "value=" + sum + ":" + true;
+        require(text.equals("value=5050:true"), "string builder");
+        require(text.substring(6, 10).equals("5050"), "substring");
+        require("мир 😀".length() == 6, "unicode");
+        require(Integer.valueOf(42).intValue() == 42, "boxing");
+        System.out.println("conformance passed");
+        return 42;
+    }
+
+    public static void main(String[] args) { System.out.println("result: " + run()); }
+}

@@ -1,0 +1,53 @@
+name: runtime
+
+on:
+  push:
+    branches: [main]
+    paths: ['core/**', 'tests/**', 'tools/**', 'CMakeLists.txt', '.github/workflows/core.yml']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: runtime-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  native:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: configure
+        run: cmake -S . -B build -G Ninja -DGUTENBERG_SANITIZE=ON -DCMAKE_BUILD_TYPE=Debug
+      - name: build
+        run: cmake --build build --parallel 2
+      - name: unit tests
+        run: ctest --test-dir build --output-on-failure
+      - name: compile independent java program
+        shell: bash
+        run: |
+          mkdir -p build/java build/dex
+          javac --release 8 -d build/java tests/java/conformance/Program.java
+          java -cp build/java conformance.Program | tee build/jvm-output.txt
+          D8=$(find "$ANDROID_HOME/build-tools" -name d8 -type f | sort -V | tail -1)
+          test -n "$D8"
+          find build/java -name '*.class' -print0 | xargs -0 "$D8" --min-api 26 --output build/dex
+      - name: inspect compiled dex
+        run: build/gutenberg inspect-dex build/dex/classes.dex
+      - name: execute compiled dex
+        run: |
+          build/gutenberg run-dex build/dex/classes.dex 'Lconformance/Program;' run '()I' | tee build/dex-output.txt
+          grep -Fx 'conformance passed' build/dex-output.txt
+          grep -Fx 'result: 42' build/dex-output.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: runtime-conformance
+          path: |
+            build/dex/
+            build/*-output.txt
+            build/Testing/Temporary/LastTest.log
+          retention-days: 7
