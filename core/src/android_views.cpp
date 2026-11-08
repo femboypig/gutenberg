@@ -1,3 +1,4 @@
+#include "android_internal.hpp"
 #include "gutenberg/android.hpp"
 #include <algorithm>
 #include <cmath>
@@ -325,6 +326,9 @@ Value AndroidSession::inflateNode(const XmlNode& xml, Value parent) {
         vm_.findMethod(type, "<init>", "(Landroid/content/Context;Landroid/util/AttributeSet;)V");
     if (constructor && constructor->dex->method(constructor->method->index).owner == type) {
         const auto attributes = vm_.allocate("Landroid/util/AttributeSet;");
+        auto attributeData = std::make_shared<ViewAttributes>();
+        attributeData->values = xml.attributes;
+        vm_.object(attributes).native = std::move(attributeData);
         for (const auto& attribute : xml.attributes) {
             const auto& data = attribute.value;
             vm_.object(attributes).fields[attribute.name] =

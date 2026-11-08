@@ -70,7 +70,7 @@ int main(int argc, char** argv) {
         session.touch(drawing, 0, 80, 70, 1, 1000);
         const auto updatedDrawing = session.scene().views.at(drawing).drawing;
         require(updatedDrawing != originalDrawing, "touch did not invalidate view");
-        require(updatedDrawing->commands[1].coordinates[0] == 56, "touch coordinate did not reach drawing");
+        require(updatedDrawing->commands[1].coordinates[0] == 54, "touch coordinate did not reach drawing");
         (void)find(session.scene(), "Count: 0");
         const auto button = find(session.scene(), "Increment");
         const auto input = find(session.scene(), "", "Landroid/widget/EditText;");

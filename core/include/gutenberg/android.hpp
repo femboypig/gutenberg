@@ -92,6 +92,7 @@ class AndroidSession {
     void installViews();
     void installServices();
     void installDrawing();
+    void installResources();
     void drawPending();
     void lifecycle(std::string name, std::string descriptor = "()V", std::vector<Value> extra = {});
     [[nodiscard]] Value inflateNode(const XmlNode& node, Value parent);

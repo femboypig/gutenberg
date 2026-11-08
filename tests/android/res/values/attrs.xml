@@ -1,0 +1,5 @@
+<resources>
+    <declare-styleable name="DrawingView">
+        <attr name="circleRadius" format="dimension" />
+    </declare-styleable>
+</resources>

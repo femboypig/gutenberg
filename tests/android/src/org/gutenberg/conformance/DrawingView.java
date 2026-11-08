@@ -1,6 +1,7 @@
 package org.gutenberg.conformance;
 
 import android.content.Context;
+import android.content.res.TypedArray;
 import android.graphics.Canvas;
 import android.graphics.Paint;
 import android.graphics.Path;
@@ -12,9 +13,14 @@ public final class DrawingView extends View {
     private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Path path = new Path();
     private float x = 60, y = 60;
+    private final float radius;
 
     public DrawingView(Context context, AttributeSet attrs) {
         super(context, attrs);
+        TypedArray values = context.obtainStyledAttributes(attrs, R.styleable.DrawingView);
+        radius = values.getDimension(R.styleable.DrawingView_circleRadius, 24);
+        if (radius != 26 || values.getIndexCount() != 1) throw new IllegalStateException("custom XML attributes");
+        values.recycle();
     }
 
     @Override protected void onDraw(Canvas canvas) {
@@ -22,7 +28,7 @@ public final class DrawingView extends View {
         canvas.drawColor(0xffe3f2fd);
         paint.setColor(0xff1565c0);
         paint.setStyle(Paint.Style.FILL);
-        canvas.drawCircle(x, y, 24, paint);
+        canvas.drawCircle(x, y, radius, paint);
         int saved = canvas.save();
         canvas.translate(120, 24);
         paint.setStyle(Paint.Style.STROKE);

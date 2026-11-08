@@ -18,6 +18,7 @@ AndroidSession::AndroidSession(std::shared_ptr<const Package> package, AndroidHo
     vm_.logger = host_.log;
     installFramework();
     installViews();
+    installResources();
     installDrawing();
     installServices();
     for (const auto& dex : package_->dexFiles())

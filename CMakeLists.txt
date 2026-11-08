@@ -26,6 +26,7 @@ add_library(gutenberg_core
     core/src/android.cpp
     core/src/android_views.cpp
     core/src/android_drawing.cpp
+    core/src/android_resources.cpp
     core/src/layout.cpp
     core/src/graphics.cpp
     core/src/android_services.cpp
