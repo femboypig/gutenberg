@@ -16,6 +16,9 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
 
 public final class MainActivity extends Activity {
     private int count;
@@ -26,6 +29,19 @@ public final class MainActivity extends Activity {
     @Override public void onCreate(Bundle savedState) {
         super.onCreate(savedState);
         try {
+            JSONObject json = new JSONObject("{\"title\":\"Gutenberg\",\"items\":[1,null,{\"active\":true}]}");
+            JSONArray items = json.getJSONArray("items");
+            if (items != json.get("items") || !items.isNull(1)) throw new IllegalStateException("JSON identity");
+            items.put(0, 42);
+            json.put("large", Long.MAX_VALUE);
+            json.put("nothing", JSONObject.NULL);
+            JSONObject restored = new JSONObject(json.toString());
+            if (restored.getLong("large") != Long.MAX_VALUE || restored.getJSONArray("items").getInt(0) != 42)
+                throw new IllegalStateException("JSON serialization");
+            if (!restored.getJSONArray("items").getJSONObject(2).getBoolean("active"))
+                throw new IllegalStateException("JSON nesting");
+            if (!restored.has("nothing") || restored.get("nothing") != JSONObject.NULL)
+                throw new IllegalStateException("JSON null sentinel");
             BufferedReader reader = new BufferedReader(new InputStreamReader(getAssets().open("message.txt")));
             if (!"Gutenberg 😀".equals(reader.readLine())) throw new IllegalStateException("asset decoding");
             reader.close();
@@ -36,7 +52,7 @@ public final class MainActivity extends Activity {
             if (inputFile.read() != 127) throw new IllegalStateException("file persistence");
             inputFile.close();
             if (new File(getFilesDir(), "checkpoint.bin").length() != 1) throw new IllegalStateException("file metadata");
-        } catch (IOException failure) {
+        } catch (IOException | JSONException failure) {
             throw new RuntimeException(failure);
         }
         setContentView(R.layout.main);

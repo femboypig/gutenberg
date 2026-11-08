@@ -4,6 +4,7 @@
 namespace gutenberg {
 void installJavaCollections(Runtime& runtime);
 void installJavaNumbers(Runtime& runtime);
+void installJavaJson(Runtime& runtime);
 struct JavaServices;
 void installJavaIo(Runtime& runtime, JavaServices services);
 void installJavaNetwork(Runtime& runtime, JavaServices services);

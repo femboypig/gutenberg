@@ -435,6 +435,7 @@ void installJavaRuntime(Runtime& vm, JavaServices services) {
     }
     installJavaCollections(vm);
     installJavaNumbers(vm);
+    installJavaJson(vm);
     installJavaIo(vm, services);
     installJavaNetwork(vm, std::move(services));
 }
