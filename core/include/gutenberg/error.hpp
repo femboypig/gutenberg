@@ -21,7 +21,8 @@ enum class ErrorCode {
     network_timeout,
     network_dns,
     network_connect,
-    network_tls
+    network_tls,
+    malformed_json
 };
 
 class Error final : public std::runtime_error {
