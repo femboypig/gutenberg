@@ -1,0 +1,69 @@
+name: ios
+
+on:
+  push:
+    branches: [main]
+    paths: ['core/**', 'ios/**', 'CMakeLists.txt', '.github/workflows/ios.yml']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ios-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  application:
+    runs-on: macos-15
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - name: configure device build
+        run: >-
+          cmake -S . -B build-ios -G Xcode
+          -DCMAKE_SYSTEM_NAME=iOS -DCMAKE_OSX_SYSROOT=iphoneos
+          -DCMAKE_OSX_ARCHITECTURES=arm64 -DCMAKE_OSX_DEPLOYMENT_TARGET=17.0
+          -DCMAKE_XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED=NO
+      - name: build device application
+        run: xcodebuild -project build-ios/Gutenberg.xcodeproj -scheme Gutenberg -configuration Release -sdk iphoneos CODE_SIGNING_ALLOWED=NO build > build-ios/device.log 2>&1
+      - name: package unsigned ipa
+        run: |
+          mkdir -p build-ios/distribution/Payload
+          cp -R build-ios/Release-iphoneos/Gutenberg.app build-ios/distribution/Payload/
+          cd build-ios/distribution
+          zip -qry Gutenberg-unsigned.ipa Payload
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Gutenberg-unsigned
+          path: build-ios/distribution/Gutenberg-unsigned.ipa
+          retention-days: 14
+      - name: configure simulator build
+        run: >-
+          cmake -S . -B build-simulator -G Xcode
+          -DCMAKE_SYSTEM_NAME=iOS -DCMAKE_OSX_SYSROOT=iphonesimulator
+          -DCMAKE_OSX_ARCHITECTURES=arm64 -DCMAKE_OSX_DEPLOYMENT_TARGET=17.0
+          -DCMAKE_XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED=NO
+      - name: build simulator application
+        run: xcodebuild -project build-simulator/Gutenberg.xcodeproj -scheme Gutenberg -configuration Debug -sdk iphonesimulator CODE_SIGNING_ALLOWED=NO build > build-simulator/simulator.log 2>&1
+      - name: smoke launch simulator
+        shell: bash
+        run: |
+          DEVICE=$(xcrun simctl list devices available -j | python3 -c 'import json,sys; d=json.load(sys.stdin); print(next(x["udid"] for group in d["devices"].values() for x in group if x["name"].startswith("iPhone")))')
+          xcrun simctl boot "$DEVICE"
+          xcrun simctl bootstatus "$DEVICE" -b
+          xcrun simctl install "$DEVICE" build-simulator/Debug-iphonesimulator/Gutenberg.app
+          xcrun simctl launch "$DEVICE" app.gutenberg.ios
+          sleep 3
+          xcrun simctl io "$DEVICE" screenshot build-simulator/library.png
+          xcrun simctl terminate "$DEVICE" app.gutenberg.ios
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ios-validation
+          path: |
+            build-ios/device.log
+            build-simulator/simulator.log
+            build-simulator/library.png
+          retention-days: 7
