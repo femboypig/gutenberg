@@ -79,6 +79,14 @@ using namespace gutenberg;
     _canvas.onCheckedChanged = ^(uint64_t handle, BOOL checked) {
         [weakSelf perform:[handle, checked](AndroidSession& s) { s.changeChecked(handle, checked); }];
     };
+    _canvas.onGeometry = ^(const std::vector<ViewSize>& sizes) {
+        [weakSelf perform:[sizes](AndroidSession& s) { s.resizeViews(sizes); }];
+    };
+    _canvas.onTouch = ^(uint64_t handle, int action, float x, float y, float pressure, int64_t timeMs) {
+        [weakSelf perform:[handle, action, x, y, pressure, timeMs](AndroidSession& s) {
+            s.touch(handle, action, x, y, pressure, timeMs);
+        }];
+    };
     [NSNotificationCenter.defaultCenter addObserver:self
                                            selector:@selector(backgrounded)
                                                name:UIApplicationDidEnterBackgroundNotification

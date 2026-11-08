@@ -59,6 +59,18 @@ int main(int argc, char** argv) {
         };
         AndroidSession session(package, host);
         session.launch();
+        std::uint64_t drawing = 0;
+        for (const auto& [handle, node] : session.scene().views)
+            if (node.customDrawing)
+                drawing = handle;
+        require(drawing != 0, "missing custom view");
+        session.resizeViews({{drawing, 320, 170}});
+        const auto originalDrawing = session.scene().views.at(drawing).drawing;
+        require(originalDrawing && originalDrawing->commands.size() >= 6, "custom view drawing");
+        session.touch(drawing, 0, 80, 70, 1, 1000);
+        const auto updatedDrawing = session.scene().views.at(drawing).drawing;
+        require(updatedDrawing != originalDrawing, "touch did not invalidate view");
+        require(updatedDrawing->commands[1].coordinates[0] == 56, "touch coordinate did not reach drawing");
         (void)find(session.scene(), "Count: 0");
         const auto button = find(session.scene(), "Increment");
         const auto input = find(session.scene(), "", "Landroid/widget/EditText;");

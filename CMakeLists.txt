@@ -25,6 +25,7 @@ add_library(gutenberg_core
     core/src/package.cpp
     core/src/android.cpp
     core/src/android_views.cpp
+    core/src/android_drawing.cpp
     core/src/layout.cpp
     core/src/graphics.cpp
     core/src/android_services.cpp
@@ -50,6 +51,7 @@ if(CMAKE_SYSTEM_NAME STREQUAL "iOS")
         ios/Library/GBLibraryStore.mm
         ios/Library/GBLibraryController.mm
         ios/Runtime/GBSceneView.mm
+        ios/Runtime/GBDrawingView.mm
         ios/Runtime/GBRuntimeController.mm
         ios/Runtime/GBHttpClient.mm
     )

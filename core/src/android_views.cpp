@@ -64,6 +64,10 @@ void AndroidSession::installViews() {
             vm_.bind(owner, "<init>", descriptor, [this, owner](Runtime& r, Arguments a) {
                 auto& node = view(a[0]);
                 node.kind = owner;
+                node.customDrawing =
+                    r.findMethod(r.object(a[0]).type, "onDraw", "(Landroid/graphics/Canvas;)V").has_value();
+                if (node.customDrawing)
+                    dirtyViews_.insert(a[0].bits);
                 if (owner == "Landroid/widget/TableLayout;")
                     node.orientation = 1;
                 r.object(a[0]).fields["context"] = a[1];
@@ -147,8 +151,11 @@ void AndroidSession::installViews() {
     });
     vm_.bind(base, "getTag", "()Ljava/lang/Object;",
              [](Runtime& r, Arguments a) { return r.object(a[0]).fields["tag"]; });
-    for (const auto* name : {"invalidate", "requestLayout"})
-        vm_.bind(base, name, "()V", [](Runtime&, Arguments) { return Value{}; });
+    for (const auto* name : {"invalidate", "requestLayout", "postInvalidate"})
+        vm_.bind(base, name, "()V", [this](Runtime&, Arguments a) {
+            dirtyViews_.insert(a[0].bits);
+            return Value{};
+        });
     vm_.bind(
         base, "setLayoutParams", "(Landroid/view/ViewGroup$LayoutParams;)V", [this](Runtime& r, Arguments a) {
             auto& node = view(a[0]);
@@ -314,8 +321,22 @@ Value AndroidSession::inflateNode(const XmlNode& xml, Value parent) {
     type = classDescriptor(type, package_->info().id);
     vm_.initialize(type);
     const auto value = vm_.allocate(type);
-    const Value args[]{value, activity_};
-    (void)vm_.invoke(type, "<init>", "(Landroid/content/Context;)V", args, InvokeKind::direct);
+    const auto constructor =
+        vm_.findMethod(type, "<init>", "(Landroid/content/Context;Landroid/util/AttributeSet;)V");
+    if (constructor && constructor->dex->method(constructor->method->index).owner == type) {
+        const auto attributes = vm_.allocate("Landroid/util/AttributeSet;");
+        for (const auto& attribute : xml.attributes) {
+            const auto& data = attribute.value;
+            vm_.object(attributes).fields[attribute.name] =
+                data.type == 3 ? vm_.string(data.text) : Value{data.data, false};
+        }
+        const Value args[]{value, activity_, attributes};
+        (void)vm_.invoke(type, "<init>", "(Landroid/content/Context;Landroid/util/AttributeSet;)V", args,
+                         InvokeKind::direct);
+    } else {
+        const Value args[]{value, activity_};
+        (void)vm_.invoke(type, "<init>", "(Landroid/content/Context;)V", args, InvokeKind::direct);
+    }
     auto& node = view(value);
     for (const auto& attribute : xml.attributes) {
         const auto& name = attribute.name;

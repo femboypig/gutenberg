@@ -18,6 +18,7 @@ AndroidSession::AndroidSession(std::shared_ptr<const Package> package, AndroidHo
     vm_.logger = host_.log;
     installFramework();
     installViews();
+    installDrawing();
     installServices();
     for (const auto& dex : package_->dexFiles())
         vm_.load(dex);
@@ -203,6 +204,7 @@ void AndroidSession::back() {
     publish();
 }
 void AndroidSession::publish() {
+    drawPending();
     if (host_.present)
         host_.present(scene_);
 }

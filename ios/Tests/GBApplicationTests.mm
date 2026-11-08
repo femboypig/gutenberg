@@ -1,4 +1,5 @@
 #import "../Library/GBLibraryStore.h"
+#import "../Runtime/GBDrawingView.h"
 #include "../Runtime/GBHttpClient.h"
 #import "../Runtime/GBRuntimeController.h"
 #import <XCTest/XCTest.h>
@@ -7,6 +8,25 @@
 @end
 
 @implementation GBApplicationTests
+- (NSData*)canvasPixels:(UIView*)view bluePixels:(NSUInteger*)bluePixels {
+    const auto width = static_cast<size_t>(view.bounds.size.width);
+    const auto height = static_cast<size_t>(view.bounds.size.height);
+    if (!width || !height || width > 4096 || height > 4096)
+        return nil;
+    NSMutableData* bytes = [NSMutableData dataWithLength:width * height * 4];
+    CGColorSpaceRef space = CGColorSpaceCreateDeviceRGB();
+    CGContextRef context = CGBitmapContextCreate(bytes.mutableBytes, width, height, 8, width * 4, space,
+                                                 kCGImageAlphaPremultipliedLast | kCGBitmapByteOrder32Big);
+    CGColorSpaceRelease(space);
+    [view.layer renderInContext:context];
+    CGContextRelease(context);
+    const auto* pixels = static_cast<const uint8_t*>(bytes.bytes);
+    *bluePixels = 0;
+    for (size_t n = 0; n < width * height; ++n)
+        if (pixels[n * 4] < 60 && pixels[n * 4 + 1] > 60 && pixels[n * 4 + 2] > 140)
+            ++*bluePixels;
+    return bytes;
+}
 - (void)testHttpTransportHandlesPostRedirectLimitsAndCancellation {
     XCTestExpectation* finished = [self expectationWithDescription:@"HTTP transport"];
     dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
@@ -218,6 +238,26 @@
     }]);
     XCTAssertTrue([self waitFor:^BOOL {
         return [runtime.title isEqualToString:@"Handler ready"];
+    }]);
+    __block GBDrawingView* drawing = nil;
+    XCTAssertTrue([self waitFor:^BOOL {
+        drawing = (GBDrawingView*)[self findView:runtime.view
+                                        matching:^BOOL(UIView* view) {
+                                            return [view isKindOfClass:GBDrawingView.class];
+                                        }];
+        NSUInteger count = 0;
+        [self canvasPixels:drawing bluePixels:&count];
+        return count > 1000;
+    }]);
+    [self assertVisible:drawing inController:runtime];
+    NSUInteger count = 0;
+    NSData* beforeTouch = [self canvasPixels:drawing bluePixels:&count];
+    XCTAssertNotNil(drawing.onTouch);
+    drawing.onTouch(0, 80, 70, 1, 1000);
+    XCTAssertTrue([self waitFor:^BOOL {
+        NSUInteger countAfter = 0;
+        NSData* afterTouch = [self canvasPixels:drawing bluePixels:&countAfter];
+        return countAfter > 1000 && ![afterTouch isEqualToData:beforeTouch];
     }]);
     [runtime.view layoutIfNeeded];
     UIGraphicsImageRenderer* renderer = [[UIGraphicsImageRenderer alloc] initWithBounds:window.bounds];

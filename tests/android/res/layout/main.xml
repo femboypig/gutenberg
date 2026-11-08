@@ -9,4 +9,6 @@
         android:text="@string/increment" />
     <Button android:id="@+id/fetch" android:layout_width="match_parent" android:layout_height="wrap_content"
         android:text="Fetch network" />
+    <org.gutenberg.conformance.DrawingView android:id="@+id/drawing"
+        android:layout_width="match_parent" android:layout_height="170dp" />
 </LinearLayout>

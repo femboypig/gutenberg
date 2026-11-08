@@ -1,4 +1,5 @@
 #import "GBSceneView.h"
+#import "GBDrawingView.h"
 #include "gutenberg/layout.hpp"
 #include <algorithm>
 #include <cmath>
@@ -42,6 +43,7 @@ bool isKind(const ViewNode& node, std::string_view name) {
 @implementation GBSceneView {
     Scene _scene;
     NSMutableDictionary<NSNumber*, UIView*>* _views;
+    std::map<uint64_t, std::pair<float, float>> _sentSizes;
 }
 - (instancetype)initWithFrame:(CGRect)frame {
     if ((self = [super initWithFrame:frame])) {
@@ -53,7 +55,17 @@ bool isKind(const ViewNode& node, std::string_view name) {
 }
 - (UIView*)createView:(const ViewNode&)node {
     UIView* view;
-    if (isKind(node, "EditText")) {
+    if (node.customDrawing) {
+        GBDrawingView* drawing = [GBDrawingView new];
+        __weak GBSceneView* weakSelf = self;
+        const auto handle = node.handle;
+        drawing.onTouch = ^(int action, float x, float y, float pressure, int64_t timeMs) {
+            GBSceneView* owner = weakSelf;
+            if (owner.onTouch)
+                owner.onTouch(handle, action, x, y, pressure, timeMs);
+        };
+        view = drawing;
+    } else if (isKind(node, "EditText")) {
         UITextField* field = [UITextField new];
         field.borderStyle = UITextBorderStyleRoundedRect;
         field.accessibilityIdentifier = @"guest.input";
@@ -115,6 +127,8 @@ bool isKind(const ViewNode& node, std::string_view name) {
         view.hidden = !node.visible;
         view.userInteractionEnabled = node.enabled;
         view.backgroundColor = node.background ? color(node.background) : UIColor.clearColor;
+        if ([view isKindOfClass:GBDrawingView.class])
+            [(GBDrawingView*)view setDisplayList:node.drawing];
         UIFont* font = [UIFont systemFontOfSize:std::clamp<CGFloat>(node.textSize, 1, 300)];
         if ([view isKindOfClass:UILabel.class]) {
             UILabel* label = (UILabel*)view;
@@ -163,6 +177,7 @@ bool isKind(const ViewNode& node, std::string_view name) {
         if (!reachable.contains(handle.unsignedLongLongValue)) {
             [_views[handle] removeFromSuperview];
             [_views removeObjectForKey:handle];
+            _sentSizes.erase(handle.unsignedLongLongValue);
         } else if (!attached.contains(handle.unsignedLongLongValue) &&
                    handle.unsignedLongLongValue != scene.root)
             [_views[handle] removeFromSuperview];
@@ -194,12 +209,20 @@ bool isKind(const ViewNode& node, std::string_view name) {
                     size.width = MAX(64, size.width);
                 return gutenberg::Size{static_cast<float>(size.width), static_cast<float>(size.height)};
             });
+        std::vector<ViewSize> sizes;
         for (const auto& [handle, box] : layout) {
             UIView* view = _views[@(handle)];
             view.frame = CGRectMake(box.frame.x, box.frame.y, box.frame.width, box.frame.height);
             if ([view isKindOfClass:UIScrollView.class])
                 ((UIScrollView*)view).contentSize = CGSizeMake(box.content.width, box.content.height);
+            const auto size = std::pair{std::floor(box.frame.width), std::floor(box.frame.height)};
+            if (!_sentSizes.contains(handle) || _sentSizes.at(handle) != size) {
+                _sentSizes[handle] = size;
+                sizes.push_back({handle, size.first, size.second});
+            }
         }
+        if (!sizes.empty() && self.onGeometry)
+            self.onGeometry(sizes);
     } catch (const std::exception& error) {
         _scene.root = 0;
         if (self.onLayoutError)
