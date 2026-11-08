@@ -53,6 +53,19 @@ if(CMAKE_SYSTEM_NAME STREQUAL "iOS")
         XCODE_ATTRIBUTE_ENABLE_USER_SCRIPT_SANDBOXING "YES"
         XCODE_ATTRIBUTE_GENERATE_INFOPLIST_FILE "NO"
     )
+    if(GUTENBERG_TEST_APK)
+        find_package(XCTest REQUIRED)
+        xctest_add_bundle(GutenbergTests Gutenberg ios/Tests/GBApplicationTests.mm "${GUTENBERG_TEST_APK}")
+        set_source_files_properties("${GUTENBERG_TEST_APK}" PROPERTIES MACOSX_PACKAGE_LOCATION Resources)
+        target_compile_options(GutenbergTests PRIVATE -fobjc-arc)
+        target_link_libraries(GutenbergTests PRIVATE "-framework UIKit")
+        set_target_properties(GutenbergTests PROPERTIES
+            XCODE_GENERATE_SCHEME YES
+            XCODE_ATTRIBUTE_PRODUCT_BUNDLE_IDENTIFIER "app.gutenberg.tests"
+            XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED "NO"
+            XCODE_ATTRIBUTE_GENERATE_INFOPLIST_FILE "YES"
+        )
+    endif()
 endif()
 
 if(NOT CMAKE_SYSTEM_NAME STREQUAL "iOS")

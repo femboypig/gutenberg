@@ -15,11 +15,27 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  fixture:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 tools/build_android_fixtures.py build/android
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ios-test-fixture
+          path: build/android/conformance.apk
+          retention-days: 3
   application:
+    needs: fixture
     runs-on: macos-15
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: ios-test-fixture
+          path: build-fixture
       - name: test runtime on apple silicon
         run: |
           uname -m
@@ -51,6 +67,7 @@ jobs:
           -DCMAKE_SYSTEM_NAME=iOS -DCMAKE_OSX_SYSROOT=iphonesimulator
           -DCMAKE_OSX_ARCHITECTURES=arm64 -DCMAKE_OSX_DEPLOYMENT_TARGET=17.0
           -DCMAKE_XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED=NO
+          -DGUTENBERG_TEST_APK=${{ github.workspace }}/build-fixture/conformance.apk
       - name: build simulator application
         run: xcodebuild -project build-simulator/Gutenberg.xcodeproj -scheme Gutenberg -configuration Debug -sdk iphonesimulator CODE_SIGNING_ALLOWED=NO build > build-simulator/simulator.log 2>&1
       - name: smoke launch simulator
@@ -64,6 +81,9 @@ jobs:
           sleep 3
           xcrun simctl io "$DEVICE" screenshot build-simulator/library.png
           xcrun simctl terminate "$DEVICE" app.gutenberg.ios
+          xcodebuild -project build-simulator/Gutenberg.xcodeproj -scheme GutenbergTests -configuration Debug -destination "platform=iOS Simulator,id=$DEVICE" -resultBundlePath build-simulator/ApplicationTests.xcresult CODE_SIGNING_ALLOWED=NO test > build-simulator/tests.log 2>&1
+          CONTAINER=$(xcrun simctl get_app_container "$DEVICE" app.gutenberg.ios data)
+          cp "$CONTAINER/Documents/activity-validation.png" build-simulator/activity.png
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -72,5 +92,8 @@ jobs:
             build-ios/device.log
             build-simulator/simulator.log
             build-simulator/library.png
+            build-simulator/activity.png
+            build-simulator/tests.log
+            build-simulator/ApplicationTests.xcresult
             build-native/Testing/Temporary/LastTest.log
           retention-days: 7
