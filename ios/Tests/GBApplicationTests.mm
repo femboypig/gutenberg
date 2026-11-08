@@ -252,6 +252,12 @@
     [self assertVisible:drawing inController:runtime];
     NSUInteger count = 0;
     NSData* beforeTouch = [self canvasPixels:drawing bluePixels:&count];
+    const auto* pixels = static_cast<const uint8_t*>(beforeTouch.bytes);
+    NSUInteger green = 0;
+    for (NSUInteger n = 0; n < beforeTouch.length / 4; ++n)
+        if (pixels[n * 4] < 80 && pixels[n * 4 + 1] > 150 && pixels[n * 4 + 2] < 80)
+            ++green;
+    XCTAssertGreaterThan(green, 100u);
     XCTAssertNotNil(drawing.onTouch);
     drawing.onTouch(0, 80, 70, 1, 1000);
     XCTAssertTrue([self waitFor:^BOOL {

@@ -65,6 +65,11 @@ bool isKind(const ViewNode& node, std::string_view name) {
                 owner.onTouch(handle, action, x, y, pressure, timeMs);
         };
         view = drawing;
+        drawing.onRenderError = ^(NSString* message) {
+            GBSceneView* owner = weakSelf;
+            if (owner.onLayoutError)
+                owner.onLayoutError(message);
+        };
     } else if (isKind(node, "EditText")) {
         UITextField* field = [UITextField new];
         field.borderStyle = UITextBorderStyleRoundedRect;
