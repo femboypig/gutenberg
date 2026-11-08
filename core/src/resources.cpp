@@ -1,4 +1,5 @@
 #include "gutenberg/resources.hpp"
+#include <algorithm>
 #include <bit>
 #include <limits>
 
@@ -227,16 +228,38 @@ Resources::Resources(std::span<const std::uint8_t> bytes) {
                         const auto entry = at + entryStart + offset;
                         const auto size = data.u16(entry);
                         const auto entryFlags = data.u16(entry + 2);
-                        if (entryFlags & 1)
-                            continue; // Bag resources are resolved by their individual consumers.
                         if (entryFlags & 8)
                             throw Error(ErrorCode::unsupported, "compact resource entries are not supported");
-                        if (size < 8 || size > type.end() - entry || type.end() - entry - size < 8)
+                        if (size < 8 || size > type.end() - entry)
                             throw Error(ErrorCode::malformed_resources, "truncated resource value");
                         const auto id = (packageId << 24) | ((typeId + typeOffset) << 16) | index;
+                        const auto name = types.at(typeId - 1) + "/" + keys.at(data.u32(entry + 4));
+                        if (entryFlags & 1) {
+                            if (size < 16)
+                                throw Error(ErrorCode::malformed_resources, "truncated resource bag");
+                            const auto mapCount = data.u32(entry + 12);
+                            if (mapCount > (type.end() - entry - size) / 12)
+                                throw Error(ErrorCode::malformed_resources, "resource bag exceeds its chunk");
+                            if (!scores_.contains(id) || score < scores_.at(id)) {
+                                ResourceBag bag;
+                                bag.parent = data.u32(entry + 8);
+                                for (std::uint32_t n = 0; n < mapCount; ++n) {
+                                    const auto at = entry + size + std::size_t(n) * 12;
+                                    bag.values[data.u32(at)] = readValue(data, at + 4, globals);
+                                }
+                                bags_[id] = std::move(bag);
+                                values_.erase(id);
+                                names_[id] = name;
+                                scores_[id] = score;
+                            }
+                            continue;
+                        }
+                        if (type.end() - entry - size < 8)
+                            throw Error(ErrorCode::malformed_resources, "truncated resource value");
                         if (!scores_.contains(id) || score < scores_.at(id)) {
                             values_[id] = readValue(data, entry + size, globals);
-                            names_[id] = types.at(typeId - 1) + "/" + keys.at(data.u32(entry + 4));
+                            bags_.erase(id);
+                            names_[id] = name;
                             scores_[id] = score;
                         }
                     }
@@ -267,6 +290,28 @@ std::string Resources::string(std::uint32_t id) const {
 std::string Resources::name(std::uint32_t id) const {
     const auto item = names_.find(id);
     return item == names_.end() ? "" : item->second;
+}
+
+const ResourceBag* Resources::bag(std::uint32_t id) const {
+    const auto found = bags_.find(id);
+    return found == bags_.end() ? nullptr : &found->second;
+}
+
+std::optional<ResourceValue> Resources::styled(std::uint32_t style, std::uint32_t attribute) const {
+    std::vector<std::uint32_t> visited;
+    while (style) {
+        if (visited.size() >= 64 || std::find(visited.begin(), visited.end(), style) != visited.end())
+            throw Error(ErrorCode::malformed_resources, "cyclic resource style hierarchy");
+        visited.push_back(style);
+        if (const auto* value = bag(style)) {
+            const auto found = value->values.find(attribute);
+            if (found != value->values.end())
+                return found->second;
+            style = value->parent;
+        } else
+            return {};
+    }
+    return {};
 }
 
 } // namespace gutenberg

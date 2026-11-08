@@ -16,6 +16,11 @@ struct ResourceValue {
     }
 };
 
+struct ResourceBag {
+    std::uint32_t parent = 0;
+    std::map<std::uint32_t, ResourceValue> values;
+};
+
 class StringPool {
   public:
     StringPool() = default;
@@ -54,12 +59,15 @@ class Resources {
     [[nodiscard]] std::optional<ResourceValue> resolve(std::uint32_t id) const;
     [[nodiscard]] std::string string(std::uint32_t id) const;
     [[nodiscard]] std::string name(std::uint32_t id) const;
+    [[nodiscard]] const ResourceBag* bag(std::uint32_t id) const;
+    [[nodiscard]] std::optional<ResourceValue> styled(std::uint32_t style, std::uint32_t attribute) const;
     [[nodiscard]] std::size_t size() const noexcept {
         return values_.size();
     }
 
   private:
     std::map<std::uint32_t, ResourceValue> values_;
+    std::map<std::uint32_t, ResourceBag> bags_;
     std::map<std::uint32_t, std::string> names_;
     std::map<std::uint32_t, unsigned> scores_;
 };
