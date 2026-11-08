@@ -46,6 +46,10 @@ jobs:
         run: python3 tools/build_android_fixtures.py build/android
       - name: execute android activity and callbacks
         run: build/apk_tests build/android/conformance.apk | tee build/apk-output.txt
+      - name: validate unchanged third party apk
+        run: |
+          python3 tools/fetch_external_fixture.py build/external/randnum.apk
+          python3 tests/external_apk_test.py build/gutenberg build/external/randnum.apk | tee build/external-output.txt
       - uses: actions/upload-artifact@v4
         if: always()
         with:
