@@ -42,12 +42,17 @@ jobs:
           build/gutenberg run-dex build/dex/classes.dex 'Lconformance/Program;' run '()I' | tee build/dex-output.txt
           grep -Fx 'conformance passed' build/dex-output.txt
           grep -Fx 'result: 42' build/dex-output.txt
+      - name: build android package
+        run: python3 tools/build_android_fixtures.py build/android
+      - name: execute android activity and callbacks
+        run: build/apk_tests build/android/conformance.apk | tee build/apk-output.txt
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: runtime-conformance
           path: |
             build/dex/
+            build/android/conformance.apk
             build/*-output.txt
             build/Testing/Temporary/LastTest.log
           retention-days: 7
