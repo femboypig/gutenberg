@@ -30,7 +30,7 @@
     configuration.secondaryText = @"Import an APK from Files to add it to your library.";
     configuration.button.title = @"Import APK";
     __weak GBLibraryController *weakSelf = self;
-    configuration.buttonProperties.primaryAction = [UIAction actionWithHandler:^(UIAction *action) { [weakSelf choosePackage]; }];
+    configuration.buttonProperties.primaryAction = [UIAction actionWithHandler:^(__unused UIAction *action) { [weakSelf choosePackage]; }];
     self.contentUnavailableConfiguration = configuration;
 }
 - (NSInteger)numberOfSectionsInTableView:(UITableView *)tableView { return _store.apps.count ? 1 : 0; }
@@ -65,10 +65,10 @@
 - (UIContextMenuConfiguration *)tableView:(UITableView *)tableView contextMenuConfigurationForRowAtIndexPath:(NSIndexPath *)indexPath point:(CGPoint)point {
     GBInstalledApp *app = _store.apps[indexPath.row];
     __weak GBLibraryController *weakSelf = self;
-    return [UIContextMenuConfiguration configurationWithIdentifier:nil previewProvider:nil actionProvider:^UIMenu *(NSArray<UIMenuElement *> *suggested) {
-        UIAction *launch = [UIAction actionWithTitle:@"Launch" image:[UIImage systemImageNamed:@"play"] identifier:nil handler:^(UIAction *action) { [weakSelf openApp:app]; }];
-        UIAction *details = [UIAction actionWithTitle:@"Package details" image:[UIImage systemImageNamed:@"info.circle"] identifier:nil handler:^(UIAction *action) { [weakSelf showDetails:app]; }];
-        UIAction *remove = [UIAction actionWithTitle:@"Delete" image:[UIImage systemImageNamed:@"trash"] identifier:nil handler:^(UIAction *action) { [weakSelf confirmRemoval:app]; }];
+    return [UIContextMenuConfiguration configurationWithIdentifier:nil previewProvider:nil actionProvider:^UIMenu *(__unused NSArray<UIMenuElement *> *suggested) {
+        UIAction *launch = [UIAction actionWithTitle:@"Launch" image:[UIImage systemImageNamed:@"play"] identifier:nil handler:^(__unused UIAction *action) { [weakSelf openApp:app]; }];
+        UIAction *details = [UIAction actionWithTitle:@"Package details" image:[UIImage systemImageNamed:@"info.circle"] identifier:nil handler:^(__unused UIAction *action) { [weakSelf showDetails:app]; }];
+        UIAction *remove = [UIAction actionWithTitle:@"Delete" image:[UIImage systemImageNamed:@"trash"] identifier:nil handler:^(__unused UIAction *action) { [weakSelf confirmRemoval:app]; }];
         remove.attributes = UIMenuElementAttributesDestructive;
         return [UIMenu menuWithChildren:@[launch, details, remove]];
     }];
@@ -83,7 +83,7 @@
 - (void)confirmRemoval:(GBInstalledApp *)app {
     UIAlertController *alert = [UIAlertController alertControllerWithTitle:[@"Delete “" stringByAppendingFormat:@"%@”?", app.name] message:@"The imported APK and its saved data will be removed." preferredStyle:UIAlertControllerStyleAlert];
     [alert addAction:[UIAlertAction actionWithTitle:@"Cancel" style:UIAlertActionStyleCancel handler:nil]];
-    [alert addAction:[UIAlertAction actionWithTitle:@"Delete" style:UIAlertActionStyleDestructive handler:^(UIAlertAction *action) {
+    [alert addAction:[UIAlertAction actionWithTitle:@"Delete" style:UIAlertActionStyleDestructive handler:^(__unused UIAlertAction *action) {
         NSError *error = nil;
         if (![self->_store removeApp:app error:&error]) { [self showError:error.localizedDescription]; return; }
         NSString *prefix = [NSString stringWithFormat:@"guest.%@.", app.identifier];

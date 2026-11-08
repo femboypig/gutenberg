@@ -38,7 +38,7 @@ if(CMAKE_SYSTEM_NAME STREQUAL "iOS")
         ios/Runtime/GBSceneView.mm
         ios/Runtime/GBRuntimeController.mm
     )
-    target_link_libraries(Gutenberg PRIVATE gutenberg_core "-framework UIKit" "-framework Foundation" "-framework UniformTypeIdentifiers")
+    target_link_libraries(Gutenberg PRIVATE gutenberg_core "-framework UIKit" "-framework Foundation" "-framework CoreGraphics" "-framework UniformTypeIdentifiers")
     target_compile_options(Gutenberg PRIVATE -fobjc-arc -Wall -Wextra)
     set_target_properties(Gutenberg PROPERTIES
         MACOSX_BUNDLE_INFO_PLIST "${CMAKE_CURRENT_SOURCE_DIR}/ios/Info.plist"

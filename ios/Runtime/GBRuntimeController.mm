@@ -131,7 +131,7 @@ using namespace gutenberg;
         if (self->_closing.load()) return;
         [self appendLog:message]; [self->_spinner stopAnimating]; self->_status.hidden = YES; [self->_timer invalidate];
         UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Execution stopped" message:message preferredStyle:UIAlertControllerStyleAlert];
-        [alert addAction:[UIAlertAction actionWithTitle:@"View logs" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) { [self showLogs]; }]];
+        [alert addAction:[UIAlertAction actionWithTitle:@"View logs" style:UIAlertActionStyleDefault handler:^(__unused UIAlertAction *action) { [self showLogs]; }]];
         [alert addAction:[UIAlertAction actionWithTitle:@"Close" style:UIAlertActionStyleCancel handler:nil]];
         if (!self.presentedViewController) [self presentViewController:alert animated:YES completion:nil];
     });
@@ -159,7 +159,7 @@ using namespace gutenberg;
     label.font = [UIFont preferredFontForTextStyle:UIFontTextStyleSubheadline]; label.numberOfLines = 0; label.textAlignment = NSTextAlignmentCenter; label.layer.cornerRadius = 12; label.clipsToBounds = YES;
     CGSize size = [label sizeThatFits:CGSizeMake(self.view.bounds.size.width - 64, 200)];
     label.frame = CGRectMake((self.view.bounds.size.width - size.width - 32) / 2, self.view.bounds.size.height - self.view.safeAreaInsets.bottom - size.height - 60, size.width + 32, size.height + 24);
-    [self.view addSubview:label]; [UIView animateWithDuration:0.25 delay:2 options:0 animations:^{ label.alpha = 0; } completion:^(BOOL finished) { [label removeFromSuperview]; }];
+    [self.view addSubview:label]; [UIView animateWithDuration:0.25 delay:2 options:0 animations:^{ label.alpha = 0; } completion:^(__unused BOOL finished) { [label removeFromSuperview]; }];
 }
 - (void)backgrounded { [self perform:[](AndroidSession& s) { s.pause(); }]; }
 - (void)foregrounded { [self perform:[](AndroidSession& s) { s.resume(); }]; }
