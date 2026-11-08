@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">Runtime Conformance</string>
+    <string name="welcome">Ready</string>
+    <string name="increment">Increment</string>
+</resources>

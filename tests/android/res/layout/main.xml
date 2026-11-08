@@ -1,0 +1,10 @@
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent" android:layout_height="match_parent"
+    android:orientation="vertical" android:padding="24dp" android:background="#fffaf5">
+    <TextView android:id="@+id/status" android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:text="@string/welcome" android:textSize="28sp" android:textColor="#202020" />
+    <EditText android:id="@+id/input" android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:hint="Enter a name" />
+    <Button android:id="@+id/increment" android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:text="@string/increment" />
+</LinearLayout>
