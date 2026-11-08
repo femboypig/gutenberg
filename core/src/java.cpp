@@ -1,4 +1,5 @@
 #include "gutenberg/java.hpp"
+#include "java_internal.hpp"
 #include <algorithm>
 #include <chrono>
 #include <cctype>
@@ -33,8 +34,11 @@ std::string number(double value) { std::ostringstream out; out << std::setprecis
 void installJavaRuntime(Runtime& vm) {
     vm.defineClass("Ljava/lang/Object;", "");
     for (const auto* name : {"java/lang/Cloneable", "java/io/Serializable", "java/lang/CharSequence", "java/lang/Comparable", "java/lang/Runnable",
-                             "java/util/Collection", "java/util/List", "java/util/Map", "java/util/Set", "java/util/Iterator"})
+                             "java/lang/Iterable", "java/util/Map", "java/util/Iterator"})
         vm.defineClass("L" + std::string(name) + ";");
+    vm.defineClass("Ljava/util/Collection;", "Ljava/lang/Object;", {"Ljava/lang/Iterable;"});
+    vm.defineClass("Ljava/util/List;", "Ljava/lang/Object;", {"Ljava/util/Collection;"});
+    vm.defineClass("Ljava/util/Set;", "Ljava/lang/Object;", {"Ljava/util/Collection;"});
     vm.defineClass("Ljava/lang/Class;");
     vm.defineClass("Ljava/lang/String;", "Ljava/lang/Object;", {"Ljava/lang/CharSequence;", "Ljava/lang/Comparable;", "Ljava/io/Serializable;"});
     vm.defineClass("Ljava/lang/StringBuilder;", "Ljava/lang/Object;", {"Ljava/lang/CharSequence;"});
@@ -197,6 +201,8 @@ void installJavaRuntime(Runtime& vm) {
             return r.string(std::to_string(type == "J" ? value.i64() : std::int64_t(value.i32())));
         });
     }
+    installJavaCollections(vm);
+    installJavaNumbers(vm);
 }
 
 }

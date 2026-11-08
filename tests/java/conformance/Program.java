@@ -1,5 +1,11 @@
 package conformance;
 
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
 public final class Program {
     private static final int seed = initialize();
     private static int initialize() { return 7; }
@@ -52,6 +58,17 @@ public final class Program {
         require(text.substring(6, 10).equals("5050"), "substring");
         require("мир 😀".length() == 6, "unicode");
         require(Integer.valueOf(42).intValue() == 42, "boxing");
+        List<String> list = new ArrayList<String>();
+        list.add("one"); list.add("two"); list.add(1, "middle");
+        require(list.get(1).equals("middle") && list.size() == 3, "list operations");
+        int length = 0;
+        for (String value : list) length += value.length();
+        require(length == 12, "iterator");
+        require(list.equals(Arrays.asList("one", "middle", "two")), "list equality");
+        Map<String, Integer> map = new HashMap<String, Integer>();
+        map.put("answer", Integer.valueOf(42));
+        require(map.get(new String("answer")).intValue() == 42, "map key equality");
+        require(Integer.parseInt("-123") == -123, "integer parsing");
         System.out.println("conformance passed");
         return 42;
     }
