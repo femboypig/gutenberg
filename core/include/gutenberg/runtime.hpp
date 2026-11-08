@@ -66,6 +66,9 @@ public:
     [[nodiscard]] std::optional<MethodLocation> findMethod(std::string_view type, std::string_view name, std::string_view descriptor) const;
     [[nodiscard]] Value getStatic(const FieldRef& field);
     void putStatic(const FieldRef& field, Value value);
+    [[nodiscard]] Value getField(Value receiver, const FieldRef& field);
+    void putField(Value receiver, const FieldRef& field, Value value);
+    void defineField(std::string owner, std::string name, std::string type, Value initial = {});
     void initialize(std::string_view type);
     [[noreturn]] void raise(std::string type, std::string message);
     void cancel() noexcept { cancelled_.store(true, std::memory_order_relaxed); }
@@ -83,6 +86,7 @@ private:
         std::vector<std::string> interfaces;
         std::shared_ptr<const DexFile> dex;
         const DexClass* definition = nullptr;
+        std::unordered_map<std::string, Value> instanceDefaults;
         enum class State { unloaded, initializing, ready, failed } state = State::unloaded;
     };
     [[nodiscard]] Value initialValue(const DexFile& dex, const EncodedValue& value);
@@ -97,6 +101,7 @@ private:
     std::atomic<bool> cancelled_ = false;
     std::uint64_t instructions_ = 0;
     std::size_t depth_ = 0;
+    std::size_t arrayElements_ = 0;
     std::unique_ptr<JitEngine> jit_;
     bool jitEnabled_ = true;
 };

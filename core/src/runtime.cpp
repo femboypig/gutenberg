@@ -180,15 +180,29 @@ Value Runtime::invoke(const MethodRef& ref, Arguments arguments, InvokeKind kind
 Value Runtime::allocate(std::string type) {
     if (heap_.size() >= limits_.objects) throw Error(ErrorCode::limit_exceeded, "guest object limit exceeded");
     auto object = std::make_unique<Object>(); object->type = std::move(type);
+    std::string current = object->type;
+    std::unordered_set<std::string> visited;
+    while (!current.empty() && visited.insert(current).second) {
+        const auto klass = classes_.find(current);
+        if (klass == classes_.end()) break;
+        for (const auto& [key, value] : klass->second.instanceDefaults) object->fields.emplace(key, value);
+        if (klass->second.definition) {
+            for (const auto& field : klass->second.definition->instanceFields)
+                object->fields.emplace(klass->second.dex->field(field.index).key(), Value{});
+        }
+        current = klass->second.super;
+    }
     heap_.push_back(std::move(object));
     return Value::object(heap_.size());
 }
 
 Value Runtime::array(std::string type, std::int32_t size) {
     if (size < 0) raise("Ljava/lang/NegativeArraySizeException;", std::to_string(size));
-    if (static_cast<std::size_t>(size) > limits_.arrayElements) throw Error(ErrorCode::limit_exceeded, "guest array limit exceeded");
+    if (static_cast<std::size_t>(size) > limits_.arrayElements - arrayElements_)
+        throw Error(ErrorCode::limit_exceeded, "guest array storage limit exceeded");
     if (type.size() < 2 || type.front() != '[') throw Error(ErrorCode::verification, "invalid array type");
     auto result = allocate(std::move(type)); object(result).elements.resize(static_cast<std::size_t>(size));
+    arrayElements_ += static_cast<std::size_t>(size);
     return result;
 }
 
@@ -277,6 +291,40 @@ void Runtime::putStatic(const FieldRef& field, Value value) {
     const auto owner = fieldOwner(field);
     initialize(owner);
     statics_[owner + "->" + field.name + ":" + field.type] = value;
+}
+
+void Runtime::defineField(std::string owner, std::string name, std::string type, Value initial) {
+    auto item = classes_.find(owner);
+    if (item == classes_.end()) throw Error(ErrorCode::verification, "field owner is not defined: " + owner);
+    item->second.instanceDefaults.emplace(owner + "->" + name + ":" + type, initial);
+}
+
+Value Runtime::getField(Value receiver, const FieldRef& field) {
+    auto& instance = object(receiver);
+    std::string owner = field.owner;
+    std::unordered_set<std::string> visited;
+    while (!owner.empty() && visited.insert(owner).second) {
+        const auto key = owner + "->" + field.name + ":" + field.type;
+        if (const auto item = instance.fields.find(key); item != instance.fields.end()) return item->second;
+        const auto klass = classes_.find(owner);
+        if (klass == classes_.end()) break;
+        owner = klass->second.super;
+    }
+    raise("Ljava/lang/NoSuchFieldError;", field.key());
+}
+
+void Runtime::putField(Value receiver, const FieldRef& field, Value value) {
+    auto& instance = object(receiver);
+    std::string owner = field.owner;
+    std::unordered_set<std::string> visited;
+    while (!owner.empty() && visited.insert(owner).second) {
+        const auto key = owner + "->" + field.name + ":" + field.type;
+        if (const auto item = instance.fields.find(key); item != instance.fields.end()) { item->second = value; return; }
+        const auto klass = classes_.find(owner);
+        if (klass == classes_.end()) break;
+        owner = klass->second.super;
+    }
+    raise("Ljava/lang/NoSuchFieldError;", field.key());
 }
 
 [[noreturn]] void Runtime::raise(std::string type, std::string message) {

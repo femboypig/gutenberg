@@ -102,3 +102,22 @@ TEST(method_descriptors_are_validated) {
     test::rejects([] { (void)methodRef("LX;", "f", "(V)V"); });
     test::rejects([] { (void)methodRef("LX;", "f", "(Lbroken)V"); });
 }
+
+TEST(runtime_resolves_inherited_fields_and_defaults) {
+    Runtime vm;
+    vm.defineClass("Ljava/lang/Object;", "");
+    vm.defineClass("LParent;"); vm.defineClass("LChild;", "LParent;");
+    vm.defineField("LParent;", "number", "I", Value::integer(17));
+    const auto value = vm.allocate("LChild;");
+    CHECK(vm.getField(value, {"LChild;", "number", "I"}).i32() == 17);
+    vm.putField(value, {"LChild;", "number", "I"}, Value::integer(23));
+    CHECK(vm.getField(value, {"LParent;", "number", "I"}).i32() == 23);
+    try { (void)vm.getField(value, {"LChild;", "missing", "I"}); CHECK(false); }
+    catch (const GuestException&) {}
+}
+
+TEST(runtime_bounds_total_array_storage) {
+    Runtime vm(RuntimeLimits{100, 100, 10, 10});
+    (void)vm.array("[I", 6);
+    test::rejects([&] { (void)vm.array("[I", 6); });
+}

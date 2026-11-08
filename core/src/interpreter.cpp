@@ -231,7 +231,7 @@ Value Runtime::execute(const DexFile& dex, const Code& code, Arguments arguments
                         const unsigned variant = static_ ? (op - 0x60) % 7 : (op - 0x52) % 7;
                         const auto destination = static_ ? aa : a;
                         if (!put) {
-                            const auto value = static_ ? getStatic(field) : object(reg(b)).fields[field.key()];
+                            const auto value = static_ ? getStatic(field) : getField(reg(b), field);
                             if (variant == 1) putWide(destination, value.bits); else reg(destination) = value;
                         } else {
                             auto value = variant == 1 ? Value{wide(destination), false} : reg(destination);
@@ -239,7 +239,7 @@ Value Runtime::execute(const DexFile& dex, const Code& code, Arguments arguments
                             if (variant == 4) value = Value::integer(std::bit_cast<std::int8_t>(static_cast<std::uint8_t>(value.bits)));
                             if (variant == 5) value = Value::integer(static_cast<std::uint16_t>(value.bits));
                             if (variant == 6) value = Value::integer(std::bit_cast<std::int16_t>(static_cast<std::uint16_t>(value.bits)));
-                            if (static_) putStatic(field, value); else object(reg(b)).fields[field.key()] = value;
+                            if (static_) putStatic(field, value); else putField(reg(b), field, value);
                         }
                     } else if ((op >= 0x6e && op <= 0x72) || (op >= 0x74 && op <= 0x78)) {
                         const bool range = op >= 0x74;

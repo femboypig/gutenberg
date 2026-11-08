@@ -24,6 +24,9 @@ void AndroidSession::installViews() {
     vm_.defineClass(linearLayout, "Landroid/view/ViewGroup$MarginLayoutParams;");
     vm_.defineClass("Landroid/widget/FrameLayout$LayoutParams;", "Landroid/view/ViewGroup$MarginLayoutParams;");
     vm_.defineClass("Landroid/widget/RelativeLayout$LayoutParams;", "Landroid/view/ViewGroup$MarginLayoutParams;");
+    vm_.defineField(layout, "width", "I", Value::integer(-2));
+    vm_.defineField(layout, "height", "I", Value::integer(-2));
+    vm_.defineField(linearLayout, "weight", "F");
     const std::pair<const char*, const char*> views[] = {
         {"LinearLayout", "Landroid/view/ViewGroup;"}, {"FrameLayout", "Landroid/view/ViewGroup;"},
         {"RelativeLayout", "Landroid/view/ViewGroup;"}, {"ScrollView", "Landroid/widget/FrameLayout;"},

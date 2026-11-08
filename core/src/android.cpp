@@ -28,6 +28,10 @@ void AndroidSession::installFramework() {
     vm_.defineClass("Landroid/view/Window;");
     vm_.defineClass("Landroid/view/WindowManager;");
     vm_.defineClass("Landroid/view/Display;");
+    for (const auto* field : {"density", "scaledDensity", "xdpi", "ydpi"})
+        vm_.defineField("Landroid/util/DisplayMetrics;", field, "F", Value::floating(1.0f));
+    for (const auto* field : {"widthPixels", "heightPixels", "densityDpi"})
+        vm_.defineField("Landroid/util/DisplayMetrics;", field, "I");
     for (const auto* owner : {"Landroid/app/Activity;", "Landroid/app/Application;", "Landroid/content/ContextWrapper;", "Landroid/view/ContextThemeWrapper;"})
         vm_.bind(owner, "<init>", "()V", [](Runtime&, Arguments) { return Value{}; });
     for (const auto* method : {"onStart", "onResume", "onPause", "onStop", "onDestroy", "onRestart", "onPostResume"})
