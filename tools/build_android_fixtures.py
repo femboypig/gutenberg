@@ -30,7 +30,7 @@ def main():
     unsigned = output / "resources.apk"
     run(tools / "aapt2", "compile", "--dir", fixture / "res", "-o", resources)
     run(tools / "aapt2", "link", "-o", unsigned, "--manifest", fixture / "AndroidManifest.xml", "-I", platform,
-        "--java", generated, "--min-sdk-version", "26", "--target-sdk-version", "28", resources)
+        "--java", generated, "-A", fixture / "assets", "--min-sdk-version", "26", "--target-sdk-version", "28", resources)
     sources = sorted((fixture / "src").rglob("*.java")) + sorted(generated.rglob("*.java"))
     run("javac", "--release", "8", "-cp", platform, "-d", classes, *sources)
     run(tools / "d8", "--min-api", "26", "--lib", platform, "--output", dex, *sorted(classes.rglob("*.class")))

@@ -5,7 +5,11 @@ namespace gutenberg {
 
 AndroidSession::AndroidSession(std::shared_ptr<const Package> package, AndroidHost host, RuntimeLimits limits)
     : package_(std::move(package)), host_(std::move(host)), vm_(limits) {
-    installJavaRuntime(vm_);
+    JavaServices services;
+    if (!host_.dataDirectory.empty())
+        services.files = std::make_shared<FileSandbox>(host_.dataDirectory, package_->info().id);
+    services.asset = [package = package_](std::string_view path) { return package->asset(path); };
+    installJavaRuntime(vm_, std::move(services));
     vm_.logger = host_.log;
     installFramework();
     installViews();

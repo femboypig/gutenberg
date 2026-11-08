@@ -40,7 +40,7 @@ std::string number(double value) {
 }
 } // namespace
 
-void installJavaRuntime(Runtime& vm) {
+void installJavaRuntime(Runtime& vm, JavaServices services) {
     vm.defineClass("Ljava/lang/Object;", "");
     for (const auto* name :
          {"java/lang/Cloneable", "java/io/Serializable", "java/lang/CharSequence", "java/lang/Comparable",
@@ -430,6 +430,7 @@ void installJavaRuntime(Runtime& vm) {
     }
     installJavaCollections(vm);
     installJavaNumbers(vm);
+    installJavaIo(vm, std::move(services));
 }
 
 } // namespace gutenberg

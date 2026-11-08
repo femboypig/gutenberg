@@ -2,6 +2,7 @@
 
 #include <bit>
 #include <cstdint>
+#include <memory>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -46,12 +47,17 @@ struct Value {
     }
 };
 
+struct NativeObject {
+    virtual ~NativeObject() = default;
+};
+
 struct Object {
     std::string type;
     std::unordered_map<std::string, Value> fields;
     std::vector<Value> elements;
     std::u16string text;
     std::uint64_t hostId = 0;
+    std::shared_ptr<NativeObject> native;
 };
 
 } // namespace gutenberg

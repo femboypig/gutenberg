@@ -5,6 +5,10 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.BufferedReader;
+import java.io.StringReader;
 
 public final class Program {
     private static final int seed = initialize();
@@ -69,6 +73,16 @@ public final class Program {
         map.put("answer", Integer.valueOf(42));
         require(map.get(new String("answer")).intValue() == 42, "map key equality");
         require(Integer.parseInt("-123") == -123, "integer parsing");
+        ByteArrayOutputStream output = new ByteArrayOutputStream();
+        output.write(255); output.write(0); output.write(42);
+        ByteArrayInputStream input = new ByteArrayInputStream(output.toByteArray());
+        require(input.read() == 255 && input.read() == 0 && input.read() == 42 && input.read() == -1, "byte streams");
+        try {
+            BufferedReader reader = new BufferedReader(new StringReader("one\r\nмир 😀\n"));
+            require(reader.readLine().equals("one") && reader.readLine().equals("мир 😀") && reader.readLine() == null, "character streams");
+            reader.close();
+        } catch (java.io.IOException failure) { throw new IllegalStateException(failure); }
+        require("\ud800".charAt(0) == '\ud800', "unpaired surrogate constant");
         System.out.println("conformance passed");
         return 42;
     }

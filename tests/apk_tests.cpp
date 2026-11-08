@@ -1,10 +1,20 @@
 #include "gutenberg/android.hpp"
+#include <chrono>
 #include <iostream>
 #include <stdexcept>
 
 using namespace gutenberg;
 
 namespace {
+struct Directory {
+    std::filesystem::path path =
+        std::filesystem::temp_directory_path() /
+        ("gutenberg-apk-" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
+    ~Directory() {
+        std::error_code error;
+        std::filesystem::remove_all(path, error);
+    }
+};
 void require(bool condition, const char* message) {
     if (!condition)
         throw std::runtime_error(message);
@@ -29,6 +39,8 @@ int main(int argc, char** argv) {
         std::map<std::string, std::string> preferences;
         unsigned presentations = 0;
         AndroidHost host;
+        Directory directory;
+        host.dataDirectory = directory.path;
         host.present = [&](const Scene& scene) {
             require(scene.root != 0, "missing content view");
             ++presentations;

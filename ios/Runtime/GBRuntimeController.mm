@@ -117,6 +117,9 @@ using namespace gutenberg;
         try {
             auto package = std::make_shared<Package>(readFile(file.fileSystemRepresentation));
             AndroidHost host;
+            host.dataDirectory = [file.URLByDeletingLastPathComponent URLByAppendingPathComponent:@"data"
+                                                                                      isDirectory:YES]
+                                     .fileSystemRepresentation;
             host.screenWidth = static_cast<float>(size.width);
             host.screenHeight = static_cast<float>(size.height);
             host.present = [weakSelf](const Scene& scene) {
