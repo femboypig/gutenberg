@@ -8,6 +8,43 @@ void AndroidSession::installDrawing() {
     const std::string base = "Landroid/view/View;", event = "Landroid/view/MotionEvent;";
     vm_.defineClass(event);
     vm_.defineClass("Landroid/view/View$OnTouchListener;");
+    for (const std::string name : {"setFocusable", "setFocusableInTouchMode"})
+        vm_.bind(base, name, "(Z)V", [this, name](Runtime& r, Arguments a) {
+            auto& fields = r.object(a[0]).fields;
+            fields[name] = a[1];
+            if (name == "setFocusableInTouchMode" && a[1].bits)
+                fields["setFocusable"] = Value::integer(1);
+            if (name == "setFocusable" && !a[1].bits && focusedView_ == a[0].bits)
+                focusedView_ = 0;
+            return Value{};
+        });
+    vm_.bind(base, "isFocusable", "()Z",
+             [](Runtime& r, Arguments a) { return r.object(a[0]).fields["setFocusable"]; });
+    vm_.bind(base, "requestFocus", "()Z", [this](Runtime& r, Arguments a) {
+        const auto& node = view(a[0]);
+        const bool focusable =
+            r.object(a[0]).fields["setFocusable"].bits != 0 && node.enabled && node.visible;
+        if (focusable)
+            focusedView_ = a[0].bits;
+        return Value::integer(focusable);
+    });
+    vm_.bind(base, "isFocused", "()Z",
+             [this](Runtime&, Arguments a) { return Value::integer(focusedView_ == a[0].bits); });
+    vm_.bind(base, "hasFocus", "()Z", [this](Runtime& r, Arguments a) {
+        auto current = Value::object(focusedView_);
+        std::unordered_set<std::uint64_t> visited;
+        while (!current.isNull() && visited.insert(current.bits).second) {
+            if (current == a[0])
+                return Value::integer(1);
+            current = r.object(current).fields["parent"];
+        }
+        return Value::integer(0);
+    });
+    vm_.bind(base, "clearFocus", "()V", [this](Runtime&, Arguments a) {
+        if (focusedView_ == a[0].bits)
+            focusedView_ = 0;
+        return Value{};
+    });
     vm_.bind(base, "onDraw", "(Landroid/graphics/Canvas;)V", [](Runtime&, Arguments) { return Value{}; });
     vm_.bind(base, "onSizeChanged", "(IIII)V", [](Runtime&, Arguments) { return Value{}; });
     vm_.bind(base, "onTouchEvent", "(Landroid/view/MotionEvent;)Z", [this](Runtime&, Arguments a) {

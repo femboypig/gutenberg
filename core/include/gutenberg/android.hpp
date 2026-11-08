@@ -108,6 +108,7 @@ class AndroidSession {
     std::map<std::uint64_t, Value> canvases_;
     std::unordered_set<std::uint64_t> dirtyViews_;
     Value motionEvent_;
+    std::uint64_t focusedView_ = 0;
     bool drawing_ = false;
     struct Task {
         std::chrono::steady_clock::time_point due;
