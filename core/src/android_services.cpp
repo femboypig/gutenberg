@@ -9,7 +9,7 @@ namespace gutenberg {
 void AndroidSession::installServices() {
     for (const auto* type : {"Landroid/os/Bundle;", "Landroid/content/Intent;", "Landroid/net/Uri;", "Landroid/widget/Toast;",
                              "Landroid/util/Log;", "Landroid/graphics/Color;", "Landroid/os/Build;", "Landroid/os/Build$VERSION;",
-                             "Landroid/os/Handler;", "Landroid/os/Looper;", "Landroid/content/SharedPreferences;", "Landroid/content/SharedPreferences$Editor;"})
+                             "Landroid/os/Handler;", "Landroid/os/Looper;", "Landroid/content/SharedPreferences;", "Landroid/content/SharedPreferences$Editor;", "Landroid/preference/PreferenceManager;"})
         vm_.defineClass(type);
     vm_.bind("Landroid/os/Bundle;", "<init>", "()V", [](Runtime&, Arguments) { return Value{}; });
     for (const auto* type : {"Int", "Boolean", "String"}) {
@@ -77,6 +77,10 @@ void AndroidSession::installServices() {
     });
 
     const std::string prefs = "Landroid/content/SharedPreferences;", editor = "Landroid/content/SharedPreferences$Editor;";
+    vm_.bind("Landroid/content/ContextWrapper;", "getBaseContext", "()Landroid/content/Context;", [](Runtime&, Arguments a) { return a[0]; });
+    vm_.bind("Landroid/preference/PreferenceManager;", "getDefaultSharedPreferences", "(Landroid/content/Context;)Landroid/content/SharedPreferences;", [this](Runtime& r, Arguments) {
+        const auto value = r.allocate("Landroid/content/SharedPreferences;"); r.object(value).text = utf16(package_->info().id + "_preferences"); return value;
+    });
     vm_.bind("Landroid/content/Context;", "getSharedPreferences", "(Ljava/lang/String;I)Landroid/content/SharedPreferences;", [](Runtime& r, Arguments a) {
         const auto value = r.allocate("Landroid/content/SharedPreferences;"); r.object(value).text = r.object(a[1]).text; return value;
     });

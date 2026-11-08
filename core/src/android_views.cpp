@@ -28,7 +28,8 @@ void AndroidSession::installViews() {
     vm_.defineField(layout, "height", "I", Value::integer(-2));
     vm_.defineField(linearLayout, "weight", "F");
     const std::pair<const char*, const char*> views[] = {
-        {"LinearLayout", "Landroid/view/ViewGroup;"}, {"FrameLayout", "Landroid/view/ViewGroup;"},
+        {"LinearLayout", "Landroid/view/ViewGroup;"}, {"TableLayout", "Landroid/widget/LinearLayout;"},
+        {"TableRow", "Landroid/widget/LinearLayout;"}, {"FrameLayout", "Landroid/view/ViewGroup;"},
         {"RelativeLayout", "Landroid/view/ViewGroup;"}, {"ScrollView", "Landroid/widget/FrameLayout;"},
         {"HorizontalScrollView", "Landroid/widget/FrameLayout;"}, {"TextView", "Landroid/view/View;"},
         {"Button", "Landroid/widget/TextView;"}, {"EditText", "Landroid/widget/TextView;"},
@@ -43,7 +44,9 @@ void AndroidSession::installViews() {
     for (const auto& owner : constructors) {
         for (const auto* descriptor : {"(Landroid/content/Context;)V", "(Landroid/content/Context;Landroid/util/AttributeSet;)V", "(Landroid/content/Context;Landroid/util/AttributeSet;I)V"}) {
             vm_.bind(owner, "<init>", descriptor, [this, owner](Runtime& r, Arguments a) {
-                auto& node = view(a[0]); node.kind = owner; r.object(a[0]).fields["context"] = a[1]; return Value{};
+                auto& node = view(a[0]); node.kind = owner;
+                if (owner == "Landroid/widget/TableLayout;") node.orientation = 1;
+                r.object(a[0]).fields["context"] = a[1]; return Value{};
             });
         }
     }

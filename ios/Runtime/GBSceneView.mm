@@ -9,7 +9,7 @@ UIColor *color(uint32_t argb) {
 }
 NSString *text(const std::string& value) { return [[NSString alloc] initWithBytes:value.data() length:value.size() encoding:NSUTF8StringEncoding] ?: @""; }
 bool isKind(const ViewNode& node, std::string_view name) { return node.kind == "Landroid/widget/" + std::string(name) + ";"; }
-bool isLinear(const ViewNode& node) { return isKind(node, "LinearLayout"); }
+bool isLinear(const ViewNode& node) { return isKind(node, "LinearLayout") || isKind(node, "TableLayout") || isKind(node, "TableRow"); }
 }
 
 @implementation GBSceneView {
