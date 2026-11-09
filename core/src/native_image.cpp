@@ -1,4 +1,5 @@
 #include "gutenberg/native_image.hpp"
+#include "gutenberg/native_call.hpp"
 #include <cerrno>
 #include <cstring>
 #include <sys/mman.h>
@@ -13,13 +14,6 @@ namespace gutenberg {
 namespace {
 [[noreturn]] void mappingError(const char* action) {
     throw Error(ErrorCode::native_link, std::string(action) + ": " + std::strerror(errno));
-}
-#if defined(__clang__)
-__attribute__((no_sanitize("function")))
-#endif
-void callInitializer(std::uint64_t address) {
-    if (address && address != UINT64_MAX)
-        reinterpret_cast<void (*)()>(static_cast<std::uintptr_t>(address))();
 }
 } // namespace
 std::unique_ptr<NativeImage> NativeImage::load(std::shared_ptr<const ElfFile> file,
@@ -130,7 +124,7 @@ void NativeImage::call(std::uint64_t address) {
         return;
     if (!file_->contains(address - loadBias_, 1, 1) && !importedFunctions_.contains(address))
         throw Error(ErrorCode::native_link, "native constructor is outside executable modules");
-    callInitializer(address);
+    (void)invokeNative(reinterpret_cast<void*>(static_cast<std::uintptr_t>(address)), {});
 }
 void NativeImage::callArray(std::pair<std::uint64_t, std::uint64_t> array, bool reverse) {
     if (!array.second)
