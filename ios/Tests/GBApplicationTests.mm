@@ -3,6 +3,7 @@
 #include "../Runtime/GBHttpClient.h"
 #import "../Runtime/GBRuntimeController.h"
 #import <XCTest/XCTest.h>
+#include <algorithm>
 #include <chrono>
 
 @interface GBApplicationTests : XCTestCase
@@ -129,6 +130,47 @@
         if (pixels[n * 4] < 60 && pixels[n * 4 + 1] > 60 && pixels[n * 4 + 2] > 140)
             ++*bluePixels;
     return bytes;
+}
+- (void)testCanvasMatrixResetPreservesClippingAfterZeroScale {
+    using namespace gutenberg;
+    auto display = std::make_shared<DisplayList>();
+    auto append = [&](DrawOperation operation, std::initializer_list<float> coordinates = {},
+                      uint32_t color = 0xff000000) {
+        DrawCommand command{operation};
+        std::copy(coordinates.begin(), coordinates.end(), command.coordinates.begin());
+        command.paint.color = color;
+        display->commands.push_back(std::move(command));
+    };
+    append(DrawOperation::color, {}, 0xffffffff);
+    append(DrawOperation::save);
+    append(DrawOperation::translate, {20, 10});
+    append(DrawOperation::clipRect, {0, 0, 20, 20});
+    append(DrawOperation::scale, {0, 0});
+    append(DrawOperation::rect, {0, 0, 100, 100}, 0xffff0000);
+    append(DrawOperation::setMatrix, {1, 0, 0, 0, 1, 0});
+    append(DrawOperation::rect, {0, 0, 100, 100}, 0xff00ff00);
+    append(DrawOperation::restore);
+    append(DrawOperation::concatMatrix, {1, 0, 60, 0, 1, 50});
+    append(DrawOperation::rect, {0, 0, 10, 10}, 0xff0000ff);
+    GBDrawingView* view = [[GBDrawingView alloc] initWithFrame:CGRectMake(0, 0, 100, 100)];
+    view.onRenderError = ^(NSString* message) {
+        XCTFail(@"Canvas replay failed: %@", message);
+    };
+    [view setDisplayList:display];
+    [view.layer displayIfNeeded];
+    NSUInteger ignored;
+    NSData* data = [self canvasPixels:view bluePixels:&ignored];
+    XCTAssertEqual(data.length, 100 * 100 * 4);
+    const auto* pixels = static_cast<const uint8_t*>(data.bytes);
+    NSUInteger red = 0, green = 0, blue = 0;
+    for (NSUInteger n = 0; n < data.length; n += 4) {
+        red += pixels[n] > 240 && pixels[n + 1] < 10 && pixels[n + 2] < 10;
+        green += pixels[n] < 10 && pixels[n + 1] > 240 && pixels[n + 2] < 10;
+        blue += pixels[n] < 10 && pixels[n + 1] < 10 && pixels[n + 2] > 240;
+    }
+    XCTAssertEqual(red, 0);
+    XCTAssertEqual(green, 400);
+    XCTAssertEqual(blue, 100);
 }
 - (void)testHttpTransportHandlesPostRedirectLimitsAndCancellation {
     XCTestExpectation* finished = [self expectationWithDescription:@"HTTP transport"];

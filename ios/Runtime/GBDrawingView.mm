@@ -1,6 +1,5 @@
 #import "GBDrawingView.h"
 #include <algorithm>
-#include <numbers>
 
 using namespace gutenberg;
 
@@ -107,6 +106,9 @@ void fillOrStroke(CGContextRef context, const DrawCommand& command) {
 }
 void draw(CGContextRef context, const DisplayList& display) {
     unsigned saves = 0;
+    Matrix3 logical, applied;
+    std::optional<Matrix3> logicalInverse = Matrix3{}, appliedInverse = Matrix3{};
+    std::vector<std::pair<Matrix3, Matrix3>> transforms;
     CGContextSaveGState(context);
     struct RestoreState {
         CGContextRef context;
@@ -121,8 +123,13 @@ void draw(CGContextRef context, const DisplayList& display) {
     } restore{context, saves};
     for (const auto& command : display.commands) {
         const auto& p = command.coordinates;
+        if (applyTransform(logical, command)) {
+            logicalInverse = logical.inverted();
+            continue;
+        }
         switch (command.operation) {
         case DrawOperation::save:
+            transforms.emplace_back(logical, applied);
             CGContextSaveGState(context);
             ++saves;
             continue;
@@ -130,20 +137,32 @@ void draw(CGContextRef context, const DisplayList& display) {
             if (saves) {
                 CGContextRestoreGState(context);
                 --saves;
+                logical = transforms.back().first;
+                applied = transforms.back().second;
+                logicalInverse = logical.inverted();
+                appliedInverse = applied.inverted();
+                transforms.pop_back();
             }
             continue;
-        case DrawOperation::translate:
-            CGContextTranslateCTM(context, p[0], p[1]);
-            continue;
-        case DrawOperation::scale:
-            CGContextScaleCTM(context, p[0], p[1]);
-            continue;
-        case DrawOperation::rotate:
-            CGContextRotateCTM(context, p[0] * std::numbers::pi / 180);
-            continue;
-        case DrawOperation::skew:
-            CGContextConcatCTM(context, CGAffineTransformMake(1, p[1], p[0], 1, 0, 0));
-            continue;
+        default:
+            break;
+        }
+        if (command.operation != DrawOperation::color) {
+            if (!logicalInverse) {
+                if (command.operation == DrawOperation::clipRect ||
+                    command.operation == DrawOperation::clipPath)
+                    CGContextClipToRect(context, CGRectZero);
+                continue;
+            }
+            if (logical.values != applied.values) {
+                const auto delta = *appliedInverse * logical;
+                const auto& m = delta.values;
+                CGContextConcatCTM(context, CGAffineTransformMake(m[0], m[3], m[1], m[4], m[2], m[5]));
+                applied = logical;
+                appliedInverse = logicalInverse;
+            }
+        }
+        switch (command.operation) {
         case DrawOperation::clipRect:
             CGContextClipToRect(context, CGRectMake(p[0], p[1], MAX(0, p[2] - p[0]), MAX(0, p[3] - p[1])));
             continue;

@@ -34,10 +34,20 @@ void record(Runtime& vm, Value canvas, DrawCommand command) {
     const auto depth = command.image && command.image->drawing ? command.image->drawing->depth + 1 : 0;
     if (cost > 2000000 - data.display->replayCost || depth > 64)
         throw Error(ErrorCode::limit_exceeded, "nested bitmap drawing limit exceeded");
+    if (command.operation == DrawOperation::save)
+        data.savedTransforms.reserve(data.savedTransforms.size() + 1);
+    data.display->commands.push_back(std::move(command));
     data.display->bytes += bytes;
     data.display->replayCost += cost;
     data.display->depth = std::max(data.display->depth, depth);
-    data.display->commands.push_back(std::move(command));
+    const auto& recorded = data.display->commands.back();
+    if (recorded.operation == DrawOperation::save)
+        data.savedTransforms.push_back(data.transform);
+    else if (recorded.operation == DrawOperation::restore) {
+        data.transform = data.savedTransforms.back();
+        data.savedTransforms.pop_back();
+    } else
+        (void)applyTransform(data.transform, recorded);
 }
 } // namespace gutenberg::graphics
 
@@ -326,34 +336,33 @@ void installCanvas(Runtime& vm) {
     for (const std::string name : {"getWidth", "getHeight", "getSaveCount"})
         vm.bind(canvasType, name, "()I", [name](Runtime& r, Arguments a) {
             const auto& c = state<CanvasState>(r, a[0]);
-            return Value::integer(static_cast<std::int32_t>(name == "getWidth" ? c.width
-                                                            : name == "getHeight"
-                                                                ? c.height
-                                                                : static_cast<float>(c.saves)));
+            return Value::integer(static_cast<std::int32_t>(
+                name == "getWidth"    ? c.width
+                : name == "getHeight" ? c.height
+                                      : static_cast<float>(c.savedTransforms.size() + 1)));
         });
     vm.bind(canvasType, "save", "()I", [](Runtime& r, Arguments a) {
         auto& c = state<CanvasState>(r, a[0]);
-        if (c.saves >= 1024)
+        if (c.savedTransforms.size() >= 1023)
             throw Error(ErrorCode::limit_exceeded, "canvas save stack limit exceeded");
+        const auto count = c.savedTransforms.size() + 1;
         record(r, a[0], {DrawOperation::save});
-        return Value::integer(static_cast<std::int32_t>(c.saves++));
+        return Value::integer(static_cast<std::int32_t>(count));
     });
     vm.bind(canvasType, "restore", "()V", [](Runtime& r, Arguments a) {
         auto& c = state<CanvasState>(r, a[0]);
-        if (c.saves == 1)
+        if (c.savedTransforms.empty())
             r.raise("Ljava/lang/IllegalStateException;", "canvas save stack underflow");
         record(r, a[0], {DrawOperation::restore});
-        --c.saves;
         return Value{};
     });
     vm.bind(canvasType, "restoreToCount", "(I)V", [](Runtime& r, Arguments a) {
         auto& c = state<CanvasState>(r, a[0]);
         const auto count = a[1].i32();
-        if (count < 1 || static_cast<unsigned>(count) > c.saves)
+        if (count < 1 || static_cast<std::size_t>(count) > c.savedTransforms.size() + 1)
             r.raise("Ljava/lang/IllegalArgumentException;", "invalid canvas save count");
-        while (c.saves > static_cast<unsigned>(count)) {
+        while (c.savedTransforms.size() + 1 > static_cast<std::size_t>(count)) {
             record(r, a[0], {DrawOperation::restore});
-            --c.saves;
         }
         return Value{};
     });
@@ -512,6 +521,8 @@ void installGraphics(Runtime& vm) {
          {paintType, pathType, canvasType, "Landroid/graphics/Rect;", "Landroid/graphics/RectF;"})
         vm.defineClass(type);
     installRectangles(vm);
+    installGeometry(vm);
+    installMatrices(vm);
     installPaint(vm);
     installPath(vm);
     installCanvas(vm);
@@ -525,7 +536,8 @@ Value createRecordingCanvas(Runtime& vm) {
 void beginRecording(Runtime& vm, Value canvas, float width, float height) {
     auto& data = state<CanvasState>(vm, canvas);
     data.display = std::make_shared<DisplayList>();
-    data.saves = 1;
+    data.transform = {};
+    data.savedTransforms.clear();
     data.width = finite(vm, width);
     data.height = finite(vm, height);
 }

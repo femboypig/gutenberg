@@ -1,5 +1,6 @@
 #pragma once
 #include "gutenberg/graphics.hpp"
+#include "gutenberg/matrix.hpp"
 
 namespace gutenberg::graphics {
 inline constexpr auto paintType = "Landroid/graphics/Paint;";
@@ -15,10 +16,14 @@ struct PathState final : NativeObject {
     float x = 0, y = 0, startX = 0, startY = 0;
     bool evenOdd = false;
 };
+struct MatrixState final : NativeObject {
+    Matrix3 value;
+};
 struct CanvasState final : NativeObject {
     std::shared_ptr<DisplayList> display;
     Value target;
-    unsigned saves = 1;
+    Matrix3 transform;
+    std::vector<Matrix3> savedTransforms;
     float width = 0, height = 0;
     void visitReferences(const std::function<void(Value)>& visit) const override {
         visit(target);
@@ -51,4 +56,6 @@ template <class T> T& state(Runtime& vm, Value value) {
 [[nodiscard]] float finite(Runtime& vm, float value);
 void record(Runtime& vm, Value canvas, DrawCommand command);
 void installBitmaps(Runtime& vm);
+void installGeometry(Runtime& vm);
+void installMatrices(Runtime& vm);
 } // namespace gutenberg::graphics

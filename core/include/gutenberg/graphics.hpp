@@ -1,5 +1,6 @@
 #pragma once
 
+#include "matrix.hpp"
 #include "runtime.hpp"
 #include <array>
 
@@ -33,6 +34,8 @@ enum class DrawOperation {
     scale,
     rotate,
     skew,
+    concatMatrix,
+    setMatrix,
     clipRect,
     clipPath,
     bitmap
@@ -59,6 +62,8 @@ struct BitmapImage {
     std::shared_ptr<const Bytes> encoded;
     std::shared_ptr<const DisplayList> drawing;
 };
+
+[[nodiscard]] bool applyTransform(Matrix3& matrix, const DrawCommand& command);
 
 void installGraphics(Runtime& runtime);
 [[nodiscard]] Value createRecordingCanvas(Runtime& runtime);
