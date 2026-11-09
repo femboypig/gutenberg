@@ -171,7 +171,7 @@ Value input(Runtime& vm, Value value, const std::shared_ptr<NetworkContext>& con
                  "HTTP status " + std::to_string(state->response.status));
     auto& stream = vm.object(value).fields["input"];
     if (stream.isNull())
-        stream = memoryInputStream(vm, state->response.body);
+        stream = memoryInputStream(vm, state->response.body, state);
     return stream;
 }
 Value connection(Runtime& vm, Value url) {

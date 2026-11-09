@@ -17,7 +17,9 @@ struct Input : NativeObject {
 struct MemoryInput final : Input {
     Bytes bytes;
     std::size_t cursor = 0;
-    explicit MemoryInput(Bytes value) : bytes(std::move(value)) {}
+    std::shared_ptr<NativeObject> owner;
+    explicit MemoryInput(Bytes value, std::shared_ptr<NativeObject> retained = {})
+        : bytes(std::move(value)), owner(std::move(retained)) {}
     std::size_t read(std::span<std::uint8_t> out) override {
         const auto count = std::min(out.size(), bytes.size() - cursor);
         std::copy_n(bytes.begin() + static_cast<std::ptrdiff_t>(cursor), count, out.begin());
@@ -247,9 +249,9 @@ std::string normalizeFilePath(std::string_view path) {
 }
 } // namespace
 
-Value memoryInputStream(Runtime& vm, Bytes bytes) {
+Value memoryInputStream(Runtime& vm, Bytes bytes, std::shared_ptr<NativeObject> owner) {
     const auto value = vm.allocate("Ljava/io/ByteArrayInputStream;");
-    vm.object(value).native = std::make_shared<MemoryInput>(std::move(bytes));
+    vm.object(value).native = std::make_shared<MemoryInput>(std::move(bytes), std::move(owner));
     return value;
 }
 Value memoryOutputStream(Runtime& vm) {

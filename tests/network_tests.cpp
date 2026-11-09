@@ -168,3 +168,34 @@ TEST(java_http_maps_transport_timeouts_to_java_exceptions) {
         CHECK(vm.object(error.value).type == "Ljava/net/SocketTimeoutException;");
     }
 }
+
+TEST(java_http_stream_retains_its_memory_reservation_across_collection) {
+    Runtime vm;
+    JavaServices services;
+    services.networkMemoryLimit = 8;
+    services.http = [](const HttpRequest&, const std::function<bool()>&) {
+        return HttpResponse{200, {}, Bytes{'d', 'a', 't', 'a'}, {}};
+    };
+    installJavaRuntime(vm, services);
+    const auto connection = open(vm, "https://example.test/first");
+    const auto stream =
+        call(vm, "Ljava/net/URLConnection;", "getInputStream", "()Ljava/io/InputStream;", {connection});
+    const auto reader = vm.allocate("Ljava/io/InputStreamReader;");
+    (void)call(vm, "Ljava/io/InputStreamReader;", "<init>", "(Ljava/io/InputStream;)V", {reader, stream},
+               InvokeKind::direct);
+    const Value roots[]{reader};
+    (void)vm.collect(roots);
+    CHECK(!vm.isAlive(connection));
+    CHECK(!vm.isAlive(stream));
+    CHECK(call(vm, "Ljava/io/Reader;", "read", "()I", {reader}).i32() == 'd');
+    const auto second = open(vm, "https://example.test/second");
+    try {
+        (void)call(vm, "Ljava/net/HttpURLConnection;", "getResponseCode", "()I", {second});
+        CHECK(false);
+    } catch (const GuestException& error) {
+        CHECK(vm.object(error.value).type == "Ljava/io/IOException;");
+    }
+    (void)vm.collect();
+    const auto third = open(vm, "https://example.test/third");
+    CHECK(call(vm, "Ljava/net/HttpURLConnection;", "getResponseCode", "()I", {third}).i32() == 200);
+}
