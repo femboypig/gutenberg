@@ -63,10 +63,12 @@ void Runtime::bind(std::string owner, std::string name, std::string descriptor, 
 
 void Runtime::load(std::shared_ptr<const DexFile> dex) {
     for (const auto& cls : dex->classes()) {
-        if (classes_.contains(cls.type))
+        if (const auto found = classes_.find(cls.type); found != classes_.end() && found->second.definition)
             throw Error(ErrorCode::verification, "duplicate class: " + cls.type);
     }
     for (const auto& cls : dex->classes()) {
+        if (classes_.contains(cls.type))
+            continue;
         ClassInfo info;
         info.super = cls.super;
         info.interfaces = cls.interfaces;

@@ -23,6 +23,37 @@ Value run(Runtime& vm, std::initializer_list<std::uint16_t> words, std::uint16_t
     code.words = words;
     return vm.execute(emptyDex(), code, {});
 }
+Bytes classDex() {
+    Bytes bytes(160);
+    const std::string magic("dex\n035\0", 8);
+    std::copy(magic.begin(), magic.end(), bytes.begin());
+    fixture::patch32(bytes, 36, 112);
+    fixture::patch32(bytes, 40, 0x12345678);
+    fixture::patch32(bytes, 56, 2);
+    fixture::patch32(bytes, 60, 112);
+    fixture::patch32(bytes, 64, 2);
+    fixture::patch32(bytes, 68, 120);
+    fixture::patch32(bytes, 96, 1);
+    fixture::patch32(bytes, 100, 128);
+    fixture::patch32(bytes, 124, 1);
+    fixture::patch32(bytes, 132, 1);
+    fixture::patch32(bytes, 136, 1);
+    fixture::patch32(bytes, 144, 0xffffffff);
+    unsigned index = 0;
+    for (const auto text : {std::string("LExample;"), std::string("Ljava/lang/Object;")}) {
+        fixture::patch32(bytes, 112 + index++ * 4, static_cast<std::uint32_t>(bytes.size()));
+        bytes.push_back(static_cast<std::uint8_t>(text.size()));
+        bytes.insert(bytes.end(), text.begin(), text.end());
+        bytes.push_back(0);
+    }
+    fixture::patch32(bytes, 32, static_cast<std::uint32_t>(bytes.size()));
+    fixture::patch32(bytes, 104, static_cast<std::uint32_t>(bytes.size() - 160));
+    fixture::patch32(bytes, 108, 160);
+    fixture::patch32(
+        bytes, 8,
+        static_cast<std::uint32_t>(adler32(1, bytes.data() + 12, static_cast<uInt>(bytes.size() - 12))));
+    return bytes;
+}
 } // namespace
 
 TEST(interpreter_integer_arithmetic) {
@@ -106,6 +137,20 @@ TEST(runtime_native_dispatch) {
             [](Runtime&, Arguments args) { return Value::integer(args[0].i32() * 2); });
     const Value args[] = {Value::integer(21)};
     CHECK(vm.invoke("LMath;", "twice", "(I)I", args, InvokeKind::static_).i32() == 42);
+}
+
+TEST(runtime_keeps_boot_classes_and_rejects_duplicate_application_definitions) {
+    const auto dex = std::make_shared<DexFile>(classDex());
+    Runtime boot;
+    boot.defineClass("Ljava/lang/Object;", "");
+    boot.defineClass("LExample;", "Ljava/lang/Object;", {"LBootMarker;"});
+    boot.load(dex);
+    CHECK(boot.assignable("LExample;", "LBootMarker;"));
+    Runtime guest;
+    guest.defineClass("Ljava/lang/Object;", "");
+    guest.load(dex);
+    CHECK(guest.hasClass("LExample;"));
+    test::rejects([&] { guest.load(dex); });
 }
 
 TEST(method_descriptors_are_validated) {
