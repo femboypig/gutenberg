@@ -30,7 +30,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: python3 tools/build_android_fixtures.py build/android
-      - run: python3 tools/build_native_fixtures.py build/android/native
+      - name: build native elf fixtures
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends clang lld
+          python3 tools/build_native_fixtures.py build/android/native
       - run: python3 tools/fetch_external_fixture.py build/android/randnum.apk
       - run: python3 tools/fetch_external_fixture.py build/android/snake.apk --sample snake
       - name: fetch compatibility apk
