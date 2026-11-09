@@ -72,6 +72,7 @@ class AndroidSession {
     void key(int code, bool down);
     void back();
     void pumpTasks();
+    [[nodiscard]] std::size_t collectGarbage();
     void cancel() noexcept {
         vm_.cancel();
     }
@@ -105,10 +106,6 @@ class AndroidSession {
     Runtime vm_;
     Scene scene_;
     Value activity_, application_;
-    std::map<std::uint64_t, Value> clickListeners_;
-    std::map<std::uint64_t, Value> checkListeners_;
-    std::map<std::uint64_t, Value> touchListeners_;
-    std::map<std::uint64_t, Value> canvases_;
     std::unordered_set<std::uint64_t> dirtyViews_;
     Value motionEvent_;
     Value keyEvent_;

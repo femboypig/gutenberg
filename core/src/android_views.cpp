@@ -128,15 +128,12 @@ void AndroidSession::installViews() {
     vm_.bind(base, "isEnabled", "()Z",
              [this](Runtime&, Arguments a) { return Value::integer(view(a[0]).enabled); });
     vm_.bind(base, "setOnClickListener", "(Landroid/view/View$OnClickListener;)V",
-             [this](Runtime&, Arguments a) {
-                 if (a[1].isNull())
-                     clickListeners_.erase(a[0].bits);
-                 else
-                     clickListeners_[a[0].bits] = a[1];
+             [](Runtime& r, Arguments a) {
+                 r.object(a[0]).fields["onClickListener"] = a[1];
                  return Value{};
              });
-    vm_.bind(base, "performClick", "()Z", [this](Runtime&, Arguments a) {
-        const bool found = clickListeners_.contains(a[0].bits);
+    vm_.bind(base, "performClick", "()Z", [this](Runtime& r, Arguments a) {
+        const bool found = !r.object(a[0]).fields["onClickListener"].isNull();
         click(a[0].bits);
         return Value::integer(found);
     });
@@ -187,6 +184,7 @@ void AndroidSession::installViews() {
         if (a[0] == a[1] || r.object(a[1]).fields.contains("parent"))
             r.raise("Ljava/lang/IllegalStateException;", "view already has a parent");
         parent.children.push_back(a[1].bits);
+        r.object(a[0]).elements.push_back(a[1]);
         r.object(a[1]).fields["parent"] = a[0];
         if (a.size() == 3) {
             const Value args[]{a[1], a[2]};
@@ -203,6 +201,7 @@ void AndroidSession::installViews() {
         for (auto child : node.children)
             r.object(Value::object(child)).fields.erase("parent");
         node.children.clear();
+        r.object(a[0]).elements.clear();
         return Value{};
     });
     vm_.bind("Landroid/view/ViewGroup;", "getChildCount", "()I", [this](Runtime&, Arguments a) {
@@ -276,11 +275,8 @@ void AndroidSession::installViews() {
     vm_.bind("Landroid/widget/CompoundButton;", "isChecked", "()Z",
              [this](Runtime&, Arguments a) { return Value::integer(view(a[0]).checked); });
     vm_.bind("Landroid/widget/CompoundButton;", "setOnCheckedChangeListener",
-             "(Landroid/widget/CompoundButton$OnCheckedChangeListener;)V", [this](Runtime&, Arguments a) {
-                 if (a[1].isNull())
-                     checkListeners_.erase(a[0].bits);
-                 else
-                     checkListeners_[a[0].bits] = a[1];
+             "(Landroid/widget/CompoundButton$OnCheckedChangeListener;)V", [](Runtime& r, Arguments a) {
+                 r.object(a[0]).fields["onCheckedChangeListener"] = a[1];
                  return Value{};
              });
     vm_.defineClass("Landroid/view/LayoutInflater;");

@@ -53,6 +53,7 @@ void AndroidSession::installMessages() {
         vm_.defineField(messageType, field, "I");
     vm_.defineField(messageType, "obj", "Ljava/lang/Object;");
     const auto looper = vm_.allocate("Landroid/os/Looper;");
+    vm_.putStatic({"Landroid/os/Looper;", "mainLooper", "Landroid/os/Looper;"}, looper);
     for (const auto* name : {"getMainLooper", "myLooper"})
         vm_.bind("Landroid/os/Looper;", name, "()Landroid/os/Looper;",
                  [looper](Runtime&, Arguments) { return looper; });
@@ -219,6 +220,9 @@ void AndroidSession::installMessages() {
 void AndroidSession::pumpTasks() {
     if (state_ == State::stopped)
         return;
+    if (vm_.allocationsSinceCollection() >= 4096 ||
+        vm_.heapSize() >= vm_.limits().objects - vm_.limits().objects / 4)
+        (void)collectGarbage();
     const auto now = std::chrono::steady_clock::now();
     bool changed = false;
     for (unsigned n = 0; n < 64 && !tasks_.empty() && tasks_.front().due <= now; ++n) {

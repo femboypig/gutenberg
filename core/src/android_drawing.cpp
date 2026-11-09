@@ -65,7 +65,7 @@ void AndroidSession::installDrawing() {
     vm_.bind(base, "onSizeChanged", "(IIII)V", [](Runtime&, Arguments) { return Value{}; });
     vm_.bind(base, "onTouchEvent", "(Landroid/view/MotionEvent;)Z", [this](Runtime&, Arguments a) {
         const auto action = vm_.object(a[1]).fields["action"].i32();
-        if (!clickListeners_.contains(a[0].bits))
+        if (vm_.object(a[0]).fields["onClickListener"].isNull())
             return Value::integer(0);
         if (action == 1)
             click(a[0].bits);
@@ -81,11 +81,8 @@ void AndroidSession::installDrawing() {
                 name == "getWidth" || name == "getMeasuredWidth" ? node.measuredWidth : node.measuredHeight));
         });
     vm_.bind(base, "setOnTouchListener", "(Landroid/view/View$OnTouchListener;)V",
-             [this](Runtime&, Arguments a) {
-                 if (a[1].isNull())
-                     touchListeners_.erase(a[0].bits);
-                 else
-                     touchListeners_[a[0].bits] = a[1];
+             [](Runtime& r, Arguments a) {
+                 r.object(a[0]).fields["onTouchListener"] = a[1];
                  return Value{};
              });
     vm_.bind(base, "setWillNotDraw", "(Z)V", [this](Runtime&, Arguments a) {
@@ -169,7 +166,7 @@ void AndroidSession::drawPending() {
                 dirtyViews_.insert(handle);
                 continue;
             }
-            auto& canvas = canvases_[handle];
+            auto& canvas = vm_.object(Value::object(handle)).fields["drawingCanvas"];
             if (canvas.isNull())
                 canvas = createRecordingCanvas(vm_);
             beginRecording(vm_, canvas, node.measuredWidth, node.measuredHeight);
@@ -202,8 +199,9 @@ void AndroidSession::touch(std::uint64_t handle, int action, float x, float y, f
     if (action == 0)
         fields["downTime"] = Value::wide(timeMs);
     bool consumed = false;
-    if (const auto listener = touchListeners_.find(handle); listener != touchListeners_.end()) {
-        const Value args[]{listener->second, Value::object(handle), motionEvent_};
+    const auto listener = vm_.object(Value::object(handle)).fields["onTouchListener"];
+    if (!listener.isNull()) {
+        const Value args[]{listener, Value::object(handle), motionEvent_};
         consumed =
             vm_.invoke("Landroid/view/View$OnTouchListener;", "onTouch",
                        "(Landroid/view/View;Landroid/view/MotionEvent;)Z", args, InvokeKind::interface_)

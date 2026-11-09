@@ -47,6 +47,7 @@ int main(int argc, char** argv) {
         require(first && first->commands.size() > 50, "third party game did not draw its board");
         require(first->commands[0].operation == DrawOperation::bitmap,
                 "game board did not use bitmap sprites");
+        (void)session.collectGarbage();
         const auto second = nextFrame(first);
         require(second && second != first, "delayed handler did not redraw the board");
         bool moved = first->commands.size() != second->commands.size();

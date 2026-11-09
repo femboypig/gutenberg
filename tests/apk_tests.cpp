@@ -79,6 +79,7 @@ int main(int argc, char** argv) {
         (void)find(session.scene(), "Gutenberg: 1");
         require(preferences.at("counter/value") == "I:1", "preference write");
         session.pumpTasks();
+        (void)session.collectGarbage();
         require(session.scene().title == "Handler ready", "handler callback");
         session.click(find(session.scene(), "Fetch network"));
         (void)find(session.scene(), "HTTP 200: network message");

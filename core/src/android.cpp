@@ -226,26 +226,46 @@ void AndroidSession::click(std::uint64_t handle) {
     const auto node = scene_.views.find(handle);
     if (node == scene_.views.end() || !node->second.enabled || !node->second.visible)
         return;
-    const auto listener = clickListeners_.find(handle);
-    if (listener != clickListeners_.end()) {
-        const Value args[]{listener->second, Value::object(handle)};
-        (void)vm_.invoke(vm_.object(listener->second).type, "onClick", "(Landroid/view/View;)V", args,
+    const auto listener = vm_.object(Value::object(handle)).fields["onClickListener"];
+    if (!listener.isNull()) {
+        const Value args[]{listener, Value::object(handle)};
+        (void)vm_.invoke(vm_.object(listener).type, "onClick", "(Landroid/view/View;)V", args,
                          InvokeKind::interface_);
     }
     publish();
 }
 void AndroidSession::changeText(std::uint64_t handle, std::string text) {
+    if (!scene_.views.contains(handle))
+        return;
     view(Value::object(handle)).text = std::move(text);
     publish();
 }
 void AndroidSession::changeChecked(std::uint64_t handle, bool checked) {
+    if (!scene_.views.contains(handle))
+        return;
     view(Value::object(handle)).checked = checked;
-    if (const auto it = checkListeners_.find(handle); it != checkListeners_.end()) {
-        const Value args[]{it->second, Value::object(handle), Value::integer(checked)};
-        (void)vm_.invoke(vm_.object(it->second).type, "onCheckedChanged",
-                         "(Landroid/widget/CompoundButton;Z)V", args, InvokeKind::interface_);
+    const auto listener = vm_.object(Value::object(handle)).fields["onCheckedChangeListener"];
+    if (!listener.isNull()) {
+        const Value args[]{listener, Value::object(handle), Value::integer(checked)};
+        (void)vm_.invoke(vm_.object(listener).type, "onCheckedChanged", "(Landroid/widget/CompoundButton;Z)V",
+                         args, InvokeKind::interface_);
     }
     publish();
+}
+
+std::size_t AndroidSession::collectGarbage() {
+    std::vector<Value> roots{activity_, application_, Value::object(scene_.root), motionEvent_, keyEvent_};
+    for (const auto& task : tasks_) {
+        roots.push_back(task.handler);
+        roots.push_back(task.message);
+    }
+    const auto reclaimed = vm_.collect(roots);
+    std::erase_if(scene_.views,
+                  [this](const auto& entry) { return !vm_.isAlive(Value::object(entry.first)); });
+    std::erase_if(dirtyViews_, [this](const auto handle) { return !vm_.isAlive(Value::object(handle)); });
+    if (focusedView_ && !vm_.isAlive(Value::object(focusedView_)))
+        focusedView_ = 0;
+    return reclaimed;
 }
 
 } // namespace gutenberg
