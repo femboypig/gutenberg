@@ -38,8 +38,6 @@ jobs:
         with:
           name: ios-test-fixture
           path: build-fixture
-      - name: generate application icon
-        run: swift tools/generate_icon.swift build-assets/Assets.xcassets
       - name: test runtime on apple silicon
         run: |
           uname -m
@@ -52,7 +50,6 @@ jobs:
           -DCMAKE_SYSTEM_NAME=iOS -DCMAKE_OSX_SYSROOT=iphoneos
           -DCMAKE_OSX_ARCHITECTURES=arm64 -DCMAKE_OSX_DEPLOYMENT_TARGET=17.0
           -DCMAKE_XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED=NO
-          -DGUTENBERG_ASSET_CATALOG=${{ github.workspace }}/build-assets/Assets.xcassets
       - name: build device application
         run: xcodebuild -project build-ios/Gutenberg.xcodeproj -scheme Gutenberg -configuration Release -sdk iphoneos CODE_SIGNING_ALLOWED=NO build > build-ios/device.log 2>&1
       - name: package unsigned ipa
@@ -73,7 +70,6 @@ jobs:
           -DCMAKE_OSX_ARCHITECTURES=arm64 -DCMAKE_OSX_DEPLOYMENT_TARGET=17.0
           -DCMAKE_XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED=NO
           -DGUTENBERG_TEST_APK=${{ github.workspace }}/build-fixture/conformance.apk
-          -DGUTENBERG_ASSET_CATALOG=${{ github.workspace }}/build-assets/Assets.xcassets
           -DGUTENBERG_EXTERNAL_TEST_APK=${{ github.workspace }}/build-fixture/randnum.apk
           -DGUTENBERG_CANVAS_TEST_APK=${{ github.workspace }}/build-fixture/snake.apk
       - name: build simulator application

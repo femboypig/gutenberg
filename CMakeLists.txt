@@ -61,11 +61,6 @@ if(CMAKE_SYSTEM_NAME STREQUAL "iOS")
     )
     target_link_libraries(Gutenberg PRIVATE gutenberg_core "-framework UIKit" "-framework Foundation" "-framework CoreGraphics" "-framework UniformTypeIdentifiers")
     target_compile_options(Gutenberg PRIVATE -fobjc-arc -Wall -Wextra)
-    if(GUTENBERG_ASSET_CATALOG)
-        target_sources(Gutenberg PRIVATE "${GUTENBERG_ASSET_CATALOG}")
-        set_source_files_properties("${GUTENBERG_ASSET_CATALOG}" PROPERTIES MACOSX_PACKAGE_LOCATION Resources)
-        set_target_properties(Gutenberg PROPERTIES XCODE_ATTRIBUTE_ASSETCATALOG_COMPILER_APPICON_NAME AppIcon)
-    endif()
     set_target_properties(Gutenberg PROPERTIES
         MACOSX_BUNDLE_INFO_PLIST "${CMAKE_CURRENT_SOURCE_DIR}/ios/Info.plist"
         XCODE_ATTRIBUTE_PRODUCT_BUNDLE_IDENTIFIER "app.gutenberg.ios"
