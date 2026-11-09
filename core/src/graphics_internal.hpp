@@ -20,6 +20,9 @@ struct CanvasState final : NativeObject {
     Value target;
     unsigned saves = 1;
     float width = 0, height = 0;
+    void visitReferences(const std::function<void(Value)>& visit) const override {
+        visit(target);
+    }
 };
 struct BitmapBudget final : NativeObject {
     std::size_t pixels = 0;

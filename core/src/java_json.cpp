@@ -17,6 +17,10 @@ struct Members final : NativeObject {
     std::vector<std::pair<std::u16string, Value>> values;
     std::unordered_map<std::u16string, std::size_t> indices;
     std::uint64_t changes = 0;
+    void visitReferences(const std::function<void(Value)>& visit) const override {
+        for (const auto& [name, value] : values)
+            visit(value);
+    }
 };
 [[noreturn]] void fail(Runtime& vm, std::string message) {
     vm.raise("Lorg/json/JSONException;", std::move(message));

@@ -90,7 +90,12 @@ class Runtime {
     }
     void tick();
     [[nodiscard]] std::size_t heapSize() const noexcept {
-        return heap_.size();
+        return liveObjects_;
+    }
+    [[nodiscard]] bool isAlive(Value value) const noexcept;
+    [[nodiscard]] std::size_t collect(Arguments roots = {});
+    [[nodiscard]] std::size_t allocationsSinceCollection() const noexcept {
+        return allocationsSinceCollection_;
     }
     [[nodiscard]] std::uint64_t instructionCount() const noexcept {
         return instructions_;
@@ -121,7 +126,13 @@ class Runtime {
     std::unordered_map<std::string, Value> statics_;
     std::unordered_map<std::u16string, Value> interns_;
     std::unordered_map<std::string, Value> mirrors_;
-    std::vector<std::unique_ptr<Object>> heap_;
+    struct HeapSlot {
+        std::unique_ptr<Object> object;
+        std::uint32_t generation = 0;
+    };
+    std::vector<HeapSlot> heap_;
+    std::vector<std::uint32_t> freeSlots_;
+    std::size_t liveObjects_ = 0, allocationsSinceCollection_ = 0;
     std::atomic<bool> cancelled_ = false;
     std::uint64_t instructions_ = 0;
     std::size_t depth_ = 0;

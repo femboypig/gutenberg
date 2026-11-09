@@ -2,6 +2,7 @@
 
 #include <bit>
 #include <cstdint>
+#include <functional>
 #include <memory>
 #include <string>
 #include <unordered_map>
@@ -49,6 +50,7 @@ struct Value {
 
 struct NativeObject {
     virtual ~NativeObject() = default;
+    virtual void visitReferences(const std::function<void(Value)>&) const {}
 };
 
 struct Object {

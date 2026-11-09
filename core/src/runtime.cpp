@@ -209,7 +209,7 @@ Value Runtime::invoke(const MethodRef& ref, Arguments arguments, InvokeKind kind
 }
 
 Value Runtime::allocate(std::string type) {
-    if (heap_.size() >= limits_.objects)
+    if (liveObjects_ >= limits_.objects)
         throw Error(ErrorCode::limit_exceeded, "guest object limit exceeded");
     auto object = std::make_unique<Object>();
     object->type = std::move(type);
@@ -227,8 +227,20 @@ Value Runtime::allocate(std::string type) {
         }
         current = klass->second.super;
     }
-    heap_.push_back(std::move(object));
-    return Value::object(heap_.size());
+    std::uint32_t index;
+    if (freeSlots_.empty()) {
+        if (heap_.size() >= UINT32_MAX)
+            throw Error(ErrorCode::limit_exceeded, "guest handle space exhausted");
+        index = static_cast<std::uint32_t>(heap_.size());
+        heap_.push_back({std::move(object), 0});
+    } else {
+        index = freeSlots_.back();
+        freeSlots_.pop_back();
+        heap_[index].object = std::move(object);
+    }
+    ++liveObjects_;
+    ++allocationsSinceCollection_;
+    return Value::object((std::uint64_t(heap_[index].generation) << 32) | (std::uint64_t(index) + 1));
 }
 
 Value Runtime::array(std::string type, std::int32_t size) {
@@ -275,14 +287,78 @@ Value Runtime::classObject(std::string type) {
 Object& Runtime::object(Value value) {
     if (value.isNull())
         raise("Ljava/lang/NullPointerException;", "null object reference");
-    if (!value.reference || value.bits > heap_.size())
+    if (!isAlive(value))
         throw Error(ErrorCode::verification, "invalid guest reference");
-    return *heap_[static_cast<std::size_t>(value.bits - 1)];
+    return *heap_[static_cast<std::uint32_t>(value.bits) - 1].object;
 }
 const Object& Runtime::object(Value value) const {
-    if (value.isNull() || !value.reference || value.bits > heap_.size())
+    if (!isAlive(value))
         throw Error(ErrorCode::verification, "invalid guest reference");
-    return *heap_[static_cast<std::size_t>(value.bits - 1)];
+    return *heap_[static_cast<std::uint32_t>(value.bits) - 1].object;
+}
+
+bool Runtime::isAlive(Value value) const noexcept {
+    const auto index = static_cast<std::uint32_t>(value.bits);
+    return value.reference && index && index <= heap_.size() && heap_[index - 1].object &&
+           heap_[index - 1].generation == static_cast<std::uint32_t>(value.bits >> 32);
+}
+
+std::size_t Runtime::collect(Arguments roots) {
+    if (depth_)
+        throw Error(ErrorCode::verification, "collection requires a quiescent runtime");
+    std::vector<bool> marked(heap_.size());
+    std::vector<std::uint32_t> pending;
+    const std::function<void(Value)> visit = [&](Value value) {
+        if (!value.reference || value.isNull())
+            return;
+        if (!isAlive(value))
+            throw Error(ErrorCode::verification, "stale reference in managed graph");
+        const auto index = static_cast<std::uint32_t>(value.bits) - 1;
+        if (!marked[index]) {
+            marked[index] = true;
+            pending.push_back(index);
+        }
+    };
+    for (const auto value : roots)
+        visit(value);
+    for (const auto& [name, value] : statics_)
+        visit(value);
+    for (const auto& [name, value] : interns_)
+        visit(value);
+    for (const auto& [name, value] : mirrors_)
+        visit(value);
+    for (const auto& [name, klass] : classes_)
+        for (const auto& [field, value] : klass.instanceDefaults)
+            visit(value);
+    while (!pending.empty()) {
+        const auto index = pending.back();
+        pending.pop_back();
+        const auto& object = *heap_[index].object;
+        for (const auto& [name, value] : object.fields)
+            visit(value);
+        for (const auto value : object.elements)
+            visit(value);
+        if (object.native)
+            object.native->visitReferences(visit);
+    }
+    freeSlots_.reserve(heap_.size());
+    std::size_t reclaimed = 0;
+    for (std::size_t index = 0; index < heap_.size(); ++index) {
+        auto& slot = heap_[index];
+        if (!slot.object || marked[index])
+            continue;
+        if (slot.object->type.starts_with('['))
+            arrayElements_ -= slot.object->elements.size();
+        slot.object.reset();
+        --liveObjects_;
+        ++reclaimed;
+        if (slot.generation != UINT32_MAX) {
+            ++slot.generation;
+            freeSlots_.push_back(static_cast<std::uint32_t>(index));
+        }
+    }
+    allocationsSinceCollection_ = 0;
+    return reclaimed;
 }
 
 Value Runtime::initialValue(const DexFile& dex, const EncodedValue& value) {
