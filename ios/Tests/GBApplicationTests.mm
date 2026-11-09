@@ -330,11 +330,14 @@
                                         }];
         return drawing != nil && drawing.bounds.size.width > 0;
     }]);
-    UIBarButtonItem* controls = runtime.navigationItem.rightBarButtonItems.lastObject;
-    [UIApplication.sharedApplication sendAction:controls.action
-                                             to:controls.target
-                                           from:controls
-                                       forEvent:nil];
+    XCTAssertTrue(navigation.navigationBarHidden);
+    UIKeyCommand* controls = nil;
+    for (UIKeyCommand* command in runtime.keyCommands)
+        if ([command.input isEqualToString:@"g"] &&
+            command.modifierFlags == (UIKeyModifierControl | UIKeyModifierShift))
+            controls = command;
+    XCTAssertNotNil(controls);
+    [UIApplication.sharedApplication sendAction:controls.action to:runtime from:controls forEvent:nil];
     UIButton* up =
         (UIButton*)[self findView:runtime.view
                          matching:^BOOL(UIView* view) {
@@ -377,6 +380,7 @@
         writeToURL:[documents URLByAppendingPathComponent:@"canvas-validation.png"]
         atomically:YES];
     [navigation popViewControllerAnimated:NO];
+    XCTAssertFalse(navigation.navigationBarHidden);
     window.rootViewController = previous;
     [NSFileManager.defaultManager removeItemAtURL:directory error:nil];
 }

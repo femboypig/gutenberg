@@ -20,6 +20,9 @@ using namespace gutenberg;
     std::atomic_bool _pumpPending;
     std::atomic_bool _closing;
     UIView* _controls;
+    BOOL _savedNavigationState;
+    BOOL _navigationBarWasHidden;
+    BOOL _interactivePopWasEnabled;
 }
 - (instancetype)initWithApp:(GBInstalledApp*)app {
     if ((self = [super init])) {
@@ -35,20 +38,19 @@ using namespace gutenberg;
     [super viewDidLoad];
     self.title = _app.name;
     self.view.backgroundColor = UIColor.systemBackgroundColor;
-    UIBarButtonItem* logs = [[UIBarButtonItem alloc] initWithImage:[UIImage systemImageNamed:@"terminal"]
-                                                             style:UIBarButtonItemStylePlain
-                                                            target:self
-                                                            action:@selector(showLogs)];
-    UIBarButtonItem* controls =
-        [[UIBarButtonItem alloc] initWithImage:[UIImage systemImageNamed:@"gamecontroller"]
-                                         style:UIBarButtonItemStylePlain
-                                        target:self
-                                        action:@selector(toggleControls)];
-    controls.accessibilityLabel = @"Toggle controls";
-    self.navigationItem.rightBarButtonItems = @[ logs, controls ];
     _canvas = [GBSceneView new];
     _canvas.translatesAutoresizingMaskIntoConstraints = NO;
     [self.view addSubview:_canvas];
+    UIScreenEdgePanGestureRecognizer* back =
+        [[UIScreenEdgePanGestureRecognizer alloc] initWithTarget:self action:@selector(returnGesture:)];
+    back.edges = UIRectEdgeLeft;
+    [self.view addGestureRecognizer:back];
+    UITapGestureRecognizer* menu =
+        [[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(showContainerMenu)];
+    menu.numberOfTouchesRequired = 2;
+    menu.numberOfTapsRequired = 2;
+    menu.cancelsTouchesInView = NO;
+    [self.view addGestureRecognizer:menu];
     _controls = [self makeControls];
     _controls.translatesAutoresizingMaskIntoConstraints = NO;
     _controls.hidden = YES;
@@ -136,6 +138,16 @@ using namespace gutenberg;
 - (BOOL)canBecomeFirstResponder {
     return YES;
 }
+- (void)viewWillAppear:(BOOL)animated {
+    [super viewWillAppear:animated];
+    if (!_savedNavigationState) {
+        _navigationBarWasHidden = self.navigationController.navigationBarHidden;
+        _interactivePopWasEnabled = self.navigationController.interactivePopGestureRecognizer.enabled;
+        _savedNavigationState = YES;
+    }
+    [self.navigationController setNavigationBarHidden:YES animated:animated];
+    self.navigationController.interactivePopGestureRecognizer.enabled = NO;
+}
 - (void)viewDidAppear:(BOOL)animated {
     [super viewDidAppear:animated];
     [self becomeFirstResponder];
@@ -147,6 +159,16 @@ using namespace gutenberg;
         [commands addObject:[UIKeyCommand keyCommandWithInput:input
                                                 modifierFlags:0
                                                        action:@selector(keyCommand:)]];
+    UIKeyCommand* menu = [UIKeyCommand keyCommandWithInput:@"\x1b"
+                                             modifierFlags:0
+                                                    action:@selector(showContainerMenu)];
+    menu.discoverabilityTitle = @"Gutenberg menu";
+    [commands addObject:menu];
+    UIKeyCommand* controls = [UIKeyCommand keyCommandWithInput:@"g"
+                                                 modifierFlags:UIKeyModifierControl | UIKeyModifierShift
+                                                        action:@selector(toggleControls)];
+    controls.discoverabilityTitle = @"Toggle directional controls";
+    [commands addObject:controls];
     return commands;
 }
 - (void)keyCommand:(UIKeyCommand*)command {
@@ -199,6 +221,50 @@ using namespace gutenberg;
     _controls.hidden = !_controls.hidden;
     if (!_controls.hidden)
         [self.view bringSubviewToFront:_controls];
+}
+- (void)returnGesture:(UIScreenEdgePanGestureRecognizer*)gesture {
+    if (gesture.state != UIGestureRecognizerStateEnded)
+        return;
+    const auto distance = [gesture translationInView:self.view].x;
+    const auto speed = [gesture velocityInView:self.view].x;
+    if (distance > MAX(72, self.view.bounds.size.width * 0.2) || (distance > 16 && speed > 600))
+        [self.navigationController popViewControllerAnimated:YES];
+}
+- (void)showContainerMenu {
+    if (self.presentedViewController)
+        return;
+    UIAlertController* menu = [UIAlertController alertControllerWithTitle:_app.name
+                                                                  message:nil
+                                                           preferredStyle:UIAlertControllerStyleActionSheet];
+    __weak GBRuntimeController* weakSelf = self;
+    [menu addAction:[UIAlertAction actionWithTitle:@"Back"
+                                             style:UIAlertActionStyleDefault
+                                           handler:^(__unused UIAlertAction* action) {
+                                               [weakSelf
+                                                   perform:[](AndroidSession& session) { session.back(); }];
+                                           }]];
+    [menu addAction:[UIAlertAction actionWithTitle:_controls.hidden ? @"Show directional controls"
+                                                                    : @"Hide directional controls"
+                                             style:UIAlertActionStyleDefault
+                                           handler:^(__unused UIAlertAction* action) {
+                                               [weakSelf toggleControls];
+                                           }]];
+    [menu addAction:[UIAlertAction actionWithTitle:@"View logs"
+                                             style:UIAlertActionStyleDefault
+                                           handler:^(__unused UIAlertAction* action) {
+                                               [weakSelf showLogs];
+                                           }]];
+    [menu addAction:[UIAlertAction actionWithTitle:@"Return to library"
+                                             style:UIAlertActionStyleDefault
+                                           handler:^(__unused UIAlertAction* action) {
+                                               [weakSelf.navigationController popViewControllerAnimated:YES];
+                                           }]];
+    [menu addAction:[UIAlertAction actionWithTitle:@"Cancel" style:UIAlertActionStyleCancel handler:nil]];
+    menu.popoverPresentationController.sourceView = self.view;
+    menu.popoverPresentationController.sourceRect =
+        CGRectMake(self.view.bounds.size.width / 2, self.view.bounds.size.height / 2, 1, 1);
+    menu.popoverPresentationController.permittedArrowDirections = 0;
+    [self presentViewController:menu animated:YES completion:nil];
 }
 - (void)keyDown:(UIButton*)button {
     const int code = static_cast<int>(button.tag);
@@ -427,6 +493,8 @@ using namespace gutenberg;
 }
 - (void)viewWillDisappear:(BOOL)animated {
     [super viewWillDisappear:animated];
+    [self.navigationController setNavigationBarHidden:_navigationBarWasHidden animated:animated];
+    self.navigationController.interactivePopGestureRecognizer.enabled = _interactivePopWasEnabled;
     if (self.isMovingFromParentViewController || self.navigationController.isBeingDismissed) {
         _closing.store(true);
         [_timer invalidate];

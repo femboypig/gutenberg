@@ -59,7 +59,8 @@
     return @"Library";
 }
 - (NSString*)tableView:(UITableView*)tableView titleForFooterInSection:(NSInteger)section {
-    return @"Apps run locally. Compatibility depends on the Android APIs and native libraries each app uses.";
+    return @"Swipe from the left edge to return here. Double-tap with two fingers inside an app to open "
+           @"controls.";
 }
 - (UITableViewCell*)tableView:(UITableView*)tableView cellForRowAtIndexPath:(NSIndexPath*)indexPath {
     UITableViewCell* cell = [tableView dequeueReusableCellWithIdentifier:@"app"];
