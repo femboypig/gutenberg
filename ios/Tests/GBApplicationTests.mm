@@ -157,9 +157,16 @@
         XCTFail(@"Canvas replay failed: %@", message);
     };
     [view setDisplayList:display];
-    [view.layer displayIfNeeded];
-    NSUInteger ignored;
-    NSData* data = [self canvasPixels:view bluePixels:&ignored];
+    // A 1x surface keeps layer resampling out of exact geometry assertions.
+    NSMutableData* data = [NSMutableData dataWithLength:100 * 100 * 4];
+    CGColorSpaceRef space = CGColorSpaceCreateDeviceRGB();
+    CGContextRef context = CGBitmapContextCreate(data.mutableBytes, 100, 100, 8, 400, space,
+                                                 kCGImageAlphaPremultipliedLast | kCGBitmapByteOrder32Big);
+    CGColorSpaceRelease(space);
+    UIGraphicsPushContext(context);
+    [view drawRect:view.bounds];
+    UIGraphicsPopContext();
+    CGContextRelease(context);
     XCTAssertEqual(data.length, 100 * 100 * 4);
     const auto* pixels = static_cast<const uint8_t*>(data.bytes);
     NSUInteger red = 0, green = 0, blue = 0;
