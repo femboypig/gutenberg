@@ -40,8 +40,6 @@ MethodRef methodRef(std::string owner, std::string name, std::string descriptor)
     return result;
 }
 
-Runtime::Runtime(RuntimeLimits limits) : limits_(limits), jit_(std::make_unique<JitEngine>()) {}
-Runtime::~Runtime() = default;
 Runtime::ThreadScope::ThreadScope(Runtime& runtime, std::shared_ptr<GuestThreadIdentity> previous)
     : runtime_(&runtime), previous_(std::move(previous)) {}
 Runtime::ThreadScope::ThreadScope(ThreadScope&& other) noexcept
@@ -68,15 +66,18 @@ void Runtime::defineClass(std::string type, std::string super, std::vector<std::
     info.interfaces = std::move(interfaces);
     info.state = ClassInfo::State::ready;
     classes_.emplace(std::move(type), std::move(info));
+    invalidateDispatch();
 }
 
 void Runtime::bind(std::string owner, std::string name, std::string descriptor, NativeMethod implementation) {
     const auto ref = methodRef(std::move(owner), std::move(name), std::move(descriptor));
     if (!natives_.emplace(ref.key(), std::move(implementation)).second)
         throw Error(ErrorCode::verification, "duplicate native method: " + ref.key());
+    invalidateDispatch();
 }
 
 void Runtime::load(std::shared_ptr<const DexFile> dex) {
+    invalidateDispatch();
     for (const auto& cls : dex->classes()) {
         if (const auto found = classes_.find(cls.type); found != classes_.end() && found->second.definition)
             throw Error(ErrorCode::verification, "duplicate class: " + cls.type);
@@ -133,29 +134,6 @@ bool Runtime::assignable(std::string_view actual, std::string_view expected) con
     return false;
 }
 
-std::optional<MethodLocation> Runtime::findMethod(std::string_view type, std::string_view name,
-                                                  std::string_view descriptor) const {
-    std::unordered_set<std::string> visited;
-    std::string current(type);
-    while (!current.empty() && visited.insert(current).second) {
-        const auto it = classes_.find(current);
-        if (it == classes_.end())
-            break;
-        const auto& info = it->second;
-        if (info.definition) {
-            for (const auto* methods : {&info.definition->directMethods, &info.definition->virtualMethods}) {
-                for (const auto& method : *methods) {
-                    const auto& ref = info.dex->method(method.index);
-                    if (ref.name == name && ref.descriptor == descriptor)
-                        return MethodLocation{info.dex, &method};
-                }
-            }
-        }
-        current = info.super;
-    }
-    return std::nullopt;
-}
-
 Value Runtime::invoke(std::string owner, std::string name, std::string descriptor, Arguments arguments,
                       InvokeKind kind) {
     return invoke(methodRef(std::move(owner), std::move(name), std::move(descriptor)), arguments, kind);
@@ -176,54 +154,17 @@ Value Runtime::invoke(const MethodRef& ref, Arguments arguments, InvokeKind kind
         }
     } scope{depth_};
     tick();
-    std::string owner = ref.owner;
+    std::string_view owner = ref.owner;
     if (kind != InvokeKind::static_) {
         if (arguments.front().isNull())
             raise("Ljava/lang/NullPointerException;", ref.key());
         const auto& receiver = object(arguments.front());
         if (kind == InvokeKind::virtual_ || kind == InvokeKind::interface_)
-            owner = receiver.type.starts_with('[') ? "Ljava/lang/Object;" : receiver.type;
+            owner = receiver.type.starts_with('[') ? std::string_view("Ljava/lang/Object;")
+                                                   : std::string_view(receiver.type);
     } else
         initialize(owner);
-    std::unordered_set<std::string> visited;
-    while (!owner.empty() && visited.insert(owner).second) {
-        const auto key = owner + "->" + ref.name + ref.descriptor;
-        if (const auto native = natives_.find(key); native != natives_.end())
-            return native->second(*this, arguments);
-        const auto item = classes_.find(owner);
-        if (item == classes_.end())
-            break;
-        const auto& info = item->second;
-        if (info.definition) {
-            for (const auto* list : {&info.definition->directMethods, &info.definition->virtualMethods}) {
-                for (const auto& method : *list) {
-                    const auto& candidate = info.dex->method(method.index);
-                    if (candidate.name != ref.name || candidate.descriptor != ref.descriptor)
-                        continue;
-                    if (bool(method.access & 8) != (kind == InvokeKind::static_))
-                        raise("Ljava/lang/IncompatibleClassChangeError;", key);
-                    const auto* code = info.dex->code(method);
-                    if (!code)
-                        raise(method.access & 0x100 ? "Ljava/lang/UnsatisfiedLinkError;"
-                                                    : "Ljava/lang/AbstractMethodError;",
-                              key);
-                    try {
-                        if (jitEnabled_)
-                            if (auto result = jit_->execute(*this, *code, arguments))
-                                return *result;
-                        return execute(*info.dex, *code, arguments, key);
-                    } catch (GuestException& error) {
-                        error.frames.push_back(key);
-                        throw;
-                    }
-                }
-            }
-        }
-        if (ref.name == "<init>" || kind == InvokeKind::direct)
-            break;
-        owner = info.super;
-    }
-    raise("Ljava/lang/NoSuchMethodError;", ref.key());
+    return dispatch(ref, owner, arguments, kind);
 }
 
 Value Runtime::allocate(std::string type) {

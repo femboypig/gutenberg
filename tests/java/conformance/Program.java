@@ -15,6 +15,17 @@ public final class Program {
     private static int initialize() { return 7; }
 
     interface Operation { int apply(int value); }
+    interface DefaultRoot { default int defaultValue() { return 5; } }
+    interface DefaultLeft extends DefaultRoot {}
+    interface DefaultRight extends DefaultRoot {}
+    interface DefaultSpecific extends DefaultRoot { @Override default int defaultValue() { return 7; } }
+    static final class DefaultDiamond implements DefaultLeft, DefaultRight {}
+    static final class DefaultChild implements DefaultSpecific {}
+    static final class DefaultSuper implements DefaultLeft {
+        int callSuper() { return DefaultLeft.super.defaultValue(); }
+    }
+    static class DefaultParent { public int defaultValue() { return 11; } }
+    static final class DefaultOverride extends DefaultParent implements DefaultSpecific {}
     static class Parent { int value; Parent(int value) { this.value = value; } int read() { return value; } }
     static final class Child extends Parent implements Operation {
         Child(int value) { super(value); }
@@ -61,6 +72,10 @@ public final class Program {
         require(parent.read() == 7, "virtual dispatch");
         require(((Operation) parent).apply(3) == 21, "interface dispatch");
         require(parent instanceof Operation, "instanceof");
+        require(new DefaultDiamond().defaultValue() == 5, "diamond interface default");
+        require(new DefaultChild().defaultValue() == 7, "most specific interface default");
+        require(new DefaultOverride().defaultValue() == 11, "class overrides interface default");
+        require(new DefaultSuper().callSuper() == 5, "inherited interface super call");
         require(Math.abs(-9) == 9 && Math.max(3, 8) == 8, "math");
         require((int) Math.sqrt(81.0) == 9, "double conversion");
         String text = "value=" + sum + ":" + true;

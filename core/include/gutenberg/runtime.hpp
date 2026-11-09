@@ -23,6 +23,7 @@ struct RuntimeLimits {
     std::size_t objects = 250000;
     std::size_t arrayElements = 4000000;
     std::size_t callDepth = 256;
+    std::size_t methodCacheEntries = 65536;
 };
 
 class GuestException final : public std::exception {
@@ -137,6 +138,9 @@ class Runtime {
         enum class State { unloaded, initializing, ready, failed } state = State::unloaded;
     };
     [[nodiscard]] Value initialValue(const DexFile& dex, const EncodedValue& value);
+    [[nodiscard]] Value dispatch(const MethodRef& method, std::string_view receiver, Arguments arguments,
+                                 InvokeKind kind);
+    void invalidateDispatch();
     [[nodiscard]] std::string fieldOwner(const FieldRef& ref) const;
     RuntimeLimits limits_;
     std::unordered_map<std::string, ClassInfo> classes_;
@@ -156,6 +160,8 @@ class Runtime {
     std::size_t depth_ = 0;
     std::size_t arrayElements_ = 0;
     std::unique_ptr<JitEngine> jit_;
+    struct Dispatch;
+    std::unique_ptr<Dispatch> dispatch_;
     bool jitEnabled_ = true;
     std::shared_ptr<GuestThreadIdentity> threadIdentity_ = std::make_shared<GuestThreadIdentity>();
 };
