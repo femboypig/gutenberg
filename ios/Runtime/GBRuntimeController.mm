@@ -23,6 +23,7 @@ using namespace gutenberg;
     BOOL _savedNavigationState;
     BOOL _navigationBarWasHidden;
     BOOL _interactivePopWasEnabled;
+    __weak UINavigationController* _containerNavigation;
 }
 - (instancetype)initWithApp:(GBInstalledApp*)app {
     if ((self = [super init])) {
@@ -140,6 +141,7 @@ using namespace gutenberg;
 }
 - (void)viewWillAppear:(BOOL)animated {
     [super viewWillAppear:animated];
+    _containerNavigation = self.navigationController;
     if (!_savedNavigationState) {
         _navigationBarWasHidden = self.navigationController.navigationBarHidden;
         _interactivePopWasEnabled = self.navigationController.interactivePopGestureRecognizer.enabled;
@@ -493,8 +495,8 @@ using namespace gutenberg;
 }
 - (void)viewWillDisappear:(BOOL)animated {
     [super viewWillDisappear:animated];
-    [self.navigationController setNavigationBarHidden:_navigationBarWasHidden animated:animated];
-    self.navigationController.interactivePopGestureRecognizer.enabled = _interactivePopWasEnabled;
+    [_containerNavigation setNavigationBarHidden:_navigationBarWasHidden animated:animated];
+    _containerNavigation.interactivePopGestureRecognizer.enabled = _interactivePopWasEnabled;
     if (self.isMovingFromParentViewController || self.navigationController.isBeingDismissed) {
         _closing.store(true);
         [_timer invalidate];
@@ -505,6 +507,13 @@ using namespace gutenberg;
             std::lock_guard lock(self->_sessionMutex);
             self->_session.reset();
         });
+    }
+}
+- (void)viewDidDisappear:(BOOL)animated {
+    [super viewDidDisappear:animated];
+    if (_closing.load()) {
+        [_containerNavigation setNavigationBarHidden:_navigationBarWasHidden animated:NO];
+        _containerNavigation.interactivePopGestureRecognizer.enabled = _interactivePopWasEnabled;
     }
 }
 - (void)dealloc {

@@ -380,7 +380,9 @@
         writeToURL:[documents URLByAppendingPathComponent:@"canvas-validation.png"]
         atomically:YES];
     [navigation popViewControllerAnimated:NO];
-    XCTAssertFalse(navigation.navigationBarHidden);
+    XCTAssertTrue([self waitFor:^BOOL {
+        return !navigation.navigationBarHidden;
+    }]);
     window.rootViewController = previous;
     [NSFileManager.defaultManager removeItemAtURL:directory error:nil];
 }

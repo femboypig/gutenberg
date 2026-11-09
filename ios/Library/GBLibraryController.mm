@@ -49,6 +49,10 @@
     }];
     self.contentUnavailableConfiguration = configuration;
 }
+- (void)viewWillAppear:(BOOL)animated {
+    [super viewWillAppear:animated];
+    [self.navigationController setNavigationBarHidden:NO animated:animated];
+}
 - (NSInteger)numberOfSectionsInTableView:(UITableView*)tableView {
     return _store.apps.count ? 1 : 0;
 }
