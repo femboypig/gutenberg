@@ -86,6 +86,26 @@ public final class Program {
         Map<String, Integer> map = new HashMap<String, Integer>();
         map.put("answer", Integer.valueOf(42));
         require(map.get(new String("answer")).intValue() == 42, "map key equality");
+        Map.Entry<String, Integer> entry = map.entrySet().iterator().next();
+        entry.setValue(Integer.valueOf(7));
+        require(map.get("answer").intValue() == 7 && map.keySet().contains("answer"), "backed map views");
+        map.computeIfAbsent("computed", new java.util.function.Function<String, Integer>() {
+            @Override public Integer apply(String key) { return Integer.valueOf(key.length()); }
+        });
+        require(map.get("computed").intValue() == 8, "map computation");
+        java.util.Iterator<String> keys = map.keySet().iterator();
+        keys.next(); keys.remove();
+        require(map.size() == 1, "map iterator removal");
+        java.util.Hashtable<String, String> table = new java.util.Hashtable<String, String>();
+        table.put("key", "value");
+        require(table.elements().nextElement().equals("value"), "hashtable enumeration");
+        try { table.put("null", null); throw new IllegalStateException("hashtable accepted null"); }
+        catch (NullPointerException expected) {}
+        Map<String, String> cache = new java.util.LinkedHashMap<String, String>(4, 0.75f, true) {
+            @Override protected boolean removeEldestEntry(Map.Entry<String, String> eldest) { return size() > 2; }
+        };
+        cache.put("a", "a"); cache.put("b", "b"); cache.get("a"); cache.put("c", "c");
+        require(cache.containsKey("a") && !cache.containsKey("b"), "linked map eviction");
         require(Integer.parseInt("-123") == -123, "integer parsing");
         ByteArrayOutputStream output = new ByteArrayOutputStream();
         output.write(255); output.write(0); output.write(42);

@@ -18,6 +18,7 @@ add_library(gutenberg_core
     core/src/interpreter.cpp
     core/src/java.cpp
     core/src/java_collections.cpp
+    core/src/java_maps.cpp
     core/src/java_numbers.cpp
     core/src/java_io.cpp
     core/src/java_network.cpp
@@ -115,7 +116,7 @@ if(NOT CMAKE_SYSTEM_NAME STREQUAL "iOS")
         target_link_libraries(canvas_apk_tests PRIVATE gutenberg_core)
         add_executable(apk_tests tests/apk_tests.cpp)
         target_link_libraries(apk_tests PRIVATE gutenberg_core)
-        add_executable(core_tests tests/core_tests.cpp tests/resource_tests.cpp tests/dex_tests.cpp tests/runtime_tests.cpp tests/java_tests.cpp tests/jit_tests.cpp tests/collection_tests.cpp tests/filesystem_tests.cpp tests/io_tests.cpp tests/layout_tests.cpp tests/network_tests.cpp tests/json_tests.cpp tests/java_json_tests.cpp tests/graphics_tests.cpp tests/gc_tests.cpp tests/thread_local_tests.cpp)
+        add_executable(core_tests tests/core_tests.cpp tests/resource_tests.cpp tests/dex_tests.cpp tests/runtime_tests.cpp tests/java_tests.cpp tests/jit_tests.cpp tests/collection_tests.cpp tests/map_tests.cpp tests/filesystem_tests.cpp tests/io_tests.cpp tests/layout_tests.cpp tests/network_tests.cpp tests/json_tests.cpp tests/java_json_tests.cpp tests/graphics_tests.cpp tests/gc_tests.cpp tests/thread_local_tests.cpp)
         target_link_libraries(core_tests PRIVATE gutenberg_core)
         add_test(NAME core_tests COMMAND core_tests)
     endif()

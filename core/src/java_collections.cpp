@@ -58,6 +58,7 @@ std::vector<Value> collect(Runtime& vm, Value collection) {
 } // namespace
 
 void installJavaCollections(Runtime& vm) {
+    installJavaMaps(vm);
     vm.defineClass("Ljava/util/ConcurrentModificationException;", "Ljava/lang/RuntimeException;");
     vm.defineClass("Ljava/util/NoSuchElementException;", "Ljava/lang/RuntimeException;");
     vm.defineClass("Ljava/util/AbstractCollection;", "Ljava/lang/Object;", {"Ljava/util/Collection;"});
@@ -70,17 +71,11 @@ void installJavaCollections(Runtime& vm) {
     vm.defineClass("Ljava/util/HashSet;", "Ljava/util/AbstractSet;",
                    {"Ljava/lang/Cloneable;", "Ljava/io/Serializable;"});
     vm.defineClass("Ljava/util/LinkedHashSet;", "Ljava/util/HashSet;");
-    vm.defineClass("Ljava/util/AbstractMap;", "Ljava/lang/Object;", {"Ljava/util/Map;"});
-    vm.defineClass("Ljava/util/HashMap;", "Ljava/util/AbstractMap;",
-                   {"Ljava/lang/Cloneable;", "Ljava/io/Serializable;"});
-    vm.defineClass("Ljava/util/LinkedHashMap;", "Ljava/util/HashMap;");
-    vm.defineClass("Ljava/util/Map$Entry;");
     vm.defineClass(iteratorType, "Ljava/lang/Object;", {"Ljava/util/Iterator;"});
     vm.defineClass("Ljava/util/Arrays;");
     vm.defineClass("Ljava/util/Collections;");
-    for (const auto* owner :
-         {"Ljava/util/ArrayList;", "Ljava/util/LinkedList;", "Ljava/util/HashSet;",
-          "Ljava/util/LinkedHashSet;", "Ljava/util/HashMap;", "Ljava/util/LinkedHashMap;"}) {
+    for (const auto* owner : {"Ljava/util/ArrayList;", "Ljava/util/LinkedList;", "Ljava/util/HashSet;",
+                              "Ljava/util/LinkedHashSet;"}) {
         vm.bind(owner, "<init>", "()V", [](Runtime&, Arguments) { return Value{}; });
         vm.bind(owner, "<init>", "(I)V", [](Runtime& r, Arguments a) {
             if (a[1].i32() < 0)
@@ -100,7 +95,7 @@ void installJavaCollections(Runtime& vm) {
             return Value{};
         });
     const std::string collection = "Ljava/util/AbstractCollection;", list = "Ljava/util/AbstractList;",
-                      set = "Ljava/util/AbstractSet;", map = "Ljava/util/AbstractMap;";
+                      set = "Ljava/util/AbstractSet;";
     vm.bind(collection, "size", "()I", [](Runtime& r, Arguments a) {
         return Value::integer(static_cast<std::int32_t>(storage(r, a[0]).size()));
     });
@@ -136,13 +131,13 @@ void installJavaCollections(Runtime& vm) {
         return result;
     });
     vm.bind(collection, "toArray", "()[Ljava/lang/Object;", [](Runtime& r, Arguments a) {
-        const auto copy = storage(r, a[0]);
+        const auto copy = collect(r, a[0]);
         const auto result = r.array("[Ljava/lang/Object;", static_cast<std::int32_t>(copy.size()));
         r.object(result).elements = copy;
         return result;
     });
     vm.bind(collection, "toArray", "([Ljava/lang/Object;)[Ljava/lang/Object;", [](Runtime& r, Arguments a) {
-        const auto values = storage(r, a[0]);
+        const auto values = collect(r, a[0]);
         auto result = a[1];
         const auto type = r.object(result).type;
         if (r.object(result).elements.size() < values.size())
@@ -171,7 +166,7 @@ void installJavaCollections(Runtime& vm) {
         return Value::integer(modified);
     });
     vm.bind(collection, "toString", "()Ljava/lang/String;", [](Runtime& r, Arguments a) {
-        const auto values = storage(r, a[0]);
+        const auto values = collect(r, a[0]);
         std::string result = "[";
         for (std::size_t n = 0; n < values.size(); ++n) {
             if (n)
@@ -180,6 +175,37 @@ void installJavaCollections(Runtime& vm) {
         }
         return r.string(result + "]");
     });
+    vm.bind(collection, "containsAll", "(Ljava/util/Collection;)Z", [](Runtime& r, Arguments a) {
+        for (const auto value : collect(r, a[1])) {
+            const Value args[]{a[0], value};
+            if (!r.invoke("Ljava/util/Collection;", "contains", "(Ljava/lang/Object;)Z", args).i32())
+                return Value::integer(0);
+        }
+        return Value::integer(1);
+    });
+    for (const bool retain : {false, true})
+        vm.bind(
+            collection, retain ? "retainAll" : "removeAll", "(Ljava/util/Collection;)Z",
+            [retain](Runtime& r, Arguments a) {
+                if (a[1].isNull())
+                    r.raise("Ljava/lang/NullPointerException;", "null collection");
+                const Value args[]{a[0]};
+                const auto it = r.invoke("Ljava/lang/Iterable;", "iterator", "()Ljava/util/Iterator;", args);
+                const Value iteratorArgs[]{it};
+                bool modified = false;
+                while (r.invoke("Ljava/util/Iterator;", "hasNext", "()Z", iteratorArgs).i32()) {
+                    const auto value =
+                        r.invoke("Ljava/util/Iterator;", "next", "()Ljava/lang/Object;", iteratorArgs);
+                    const Value query[]{a[1], value};
+                    const bool contains =
+                        r.invoke("Ljava/util/Collection;", "contains", "(Ljava/lang/Object;)Z", query).i32();
+                    if (contains != retain) {
+                        (void)r.invoke("Ljava/util/Iterator;", "remove", "()V", iteratorArgs);
+                        modified = true;
+                    }
+                }
+                return Value::integer(modified);
+            });
     vm.bind(list, "add", "(Ljava/lang/Object;)Z", [](Runtime& r, Arguments a) {
         auto& obj = r.object(a[0]);
         if (storage(r, a[0]).size() >= r.limits().arrayElements)
@@ -260,6 +286,27 @@ void installJavaCollections(Runtime& vm) {
         changed(obj);
         return Value::integer(1);
     });
+    vm.bind(set, "equals", "(Ljava/lang/Object;)Z", [](Runtime& r, Arguments a) {
+        if (a[0] == a[1])
+            return Value::integer(1);
+        if (a[1].isNull() || !r.assignable(r.object(a[1]).type, "Ljava/util/Set;"))
+            return Value::integer(0);
+        const Value left[]{a[0]}, right[]{a[1]}, both[]{a[0], a[1]};
+        if (r.invoke("Ljava/util/Set;", "size", "()I", left) !=
+            r.invoke("Ljava/util/Set;", "size", "()I", right))
+            return Value::integer(0);
+        return r.invoke("Ljava/util/Set;", "containsAll", "(Ljava/util/Collection;)Z", both);
+    });
+    vm.bind(set, "hashCode", "()I", [](Runtime& r, Arguments a) {
+        std::uint32_t hash = 0;
+        for (const auto value : collect(r, a[0])) {
+            const Value args[]{value};
+            if (!value.isNull())
+                hash +=
+                    static_cast<std::uint32_t>(r.invoke("Ljava/lang/Object;", "hashCode", "()I", args).bits);
+        }
+        return Value{hash, false};
+    });
     vm.bind(iteratorType, "hasNext", "()Z", [](Runtime& r, Arguments a) {
         auto& it = r.object(a[0]);
         return Value::integer(it.fields["position"].bits < storage(r, it.fields["source"]).size());
@@ -291,55 +338,6 @@ void installJavaCollections(Runtime& vm) {
         it.fields["position"] = Value::integer(at);
         it.fields["last"] = Value::integer(-1);
         return Value{};
-    });
-    vm.bind(map, "size", "()I", [](Runtime& r, Arguments a) {
-        return Value::integer(static_cast<std::int32_t>(storage(r, a[0]).size() / 2));
-    });
-    vm.bind(map, "isEmpty", "()Z",
-            [](Runtime& r, Arguments a) { return Value::integer(storage(r, a[0]).empty()); });
-    vm.bind(map, "clear", "()V", [](Runtime& r, Arguments a) {
-        mutableCollection(r, a[0]);
-        auto& obj = r.object(a[0]);
-        storage(r, a[0]).clear();
-        changed(obj);
-        return Value{};
-    });
-    vm.bind(map, "containsKey", "(Ljava/lang/Object;)Z", [](Runtime& r, Arguments a) {
-        return Value::integer(index(r, a[0], a[1], 2) < storage(r, a[0]).size());
-    });
-    vm.bind(map, "get", "(Ljava/lang/Object;)Ljava/lang/Object;", [](Runtime& r, Arguments a) {
-        const auto at = index(r, a[0], a[1], 2);
-        return at >= storage(r, a[0]).size() ? Value{} : storage(r, a[0])[at + 1];
-    });
-    vm.bind(map, "put", "(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;",
-            [](Runtime& r, Arguments a) {
-                auto& obj = r.object(a[0]);
-                const auto at = index(r, a[0], a[1], 2);
-                if (at < storage(r, a[0]).size()) {
-                    mutableCollection(r, a[0]);
-                    const auto previous = storage(r, a[0])[at + 1];
-                    storage(r, a[0])[at + 1] = a[2];
-                    return previous;
-                }
-                if (storage(r, a[0]).size() + 2 > r.limits().arrayElements)
-                    throw Error(ErrorCode::limit_exceeded, "map limit exceeded");
-                mutableCollection(r, a[0]);
-                storage(r, a[0]).push_back(a[1]);
-                storage(r, a[0]).push_back(a[2]);
-                changed(obj);
-                return Value{};
-            });
-    vm.bind(map, "remove", "(Ljava/lang/Object;)Ljava/lang/Object;", [](Runtime& r, Arguments a) {
-        auto& obj = r.object(a[0]);
-        const auto at = index(r, a[0], a[1], 2);
-        if (at >= storage(r, a[0]).size())
-            return Value{};
-        const auto previous = storage(r, a[0])[at + 1];
-        mutableCollection(r, a[0]);
-        storage(r, a[0]).erase(storage(r, a[0]).begin() + static_cast<std::ptrdiff_t>(at),
-                               storage(r, a[0]).begin() + static_cast<std::ptrdiff_t>(at + 2));
-        changed(obj);
-        return previous;
     });
     vm.bind("Ljava/util/Arrays;", "asList", "([Ljava/lang/Object;)Ljava/util/List;",
             [](Runtime& r, Arguments a) {

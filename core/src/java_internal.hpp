@@ -3,6 +3,7 @@
 
 namespace gutenberg {
 void installJavaCollections(Runtime& runtime);
+void installJavaMaps(Runtime& runtime);
 void installJavaNumbers(Runtime& runtime);
 void installJavaJson(Runtime& runtime);
 void installJavaReflection(Runtime& runtime);
