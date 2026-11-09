@@ -16,6 +16,8 @@ add_library(gutenberg_core
     core/src/dex.cpp
     core/src/elf.cpp
     core/src/native_image.cpp
+    core/src/native_call.cpp
+    core/src/native_call_bridge.cpp
     core/src/runtime.cpp
     core/src/interpreter.cpp
     core/src/java.cpp

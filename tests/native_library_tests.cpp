@@ -1,3 +1,4 @@
+#include "gutenberg/native_call.hpp"
 #include "gutenberg/native_image.hpp"
 #include <iostream>
 #include <stdexcept>
@@ -18,26 +19,18 @@ void require(bool condition, const char* message) {
     if (!condition)
         throw std::runtime_error(message);
 }
-#if defined(__clang__)
-__attribute__((no_sanitize("function")))
-#endif
 long noArguments(void* function) {
     require(function != nullptr, "missing native function");
-    return reinterpret_cast<long (*)()>(function)();
+    return std::bit_cast<long>(invokeNative(function, {}).integer);
 }
-#if defined(__clang__)
-__attribute__((no_sanitize("function")))
-#endif
 long oneArgument(void* function, long value) {
     require(function != nullptr, "missing native function");
-    return reinterpret_cast<long (*)(long)>(function)(value);
+    const NativeArgument args[]{NativeArgument::integer(static_cast<std::uint64_t>(value))};
+    return std::bit_cast<long>(invokeNative(function, args).integer);
 }
-#if defined(__clang__)
-__attribute__((no_sanitize("function")))
-#endif
 long* address(void* function) {
     require(function != nullptr, "missing native pointer function");
-    return reinterpret_cast<long* (*)()>(function)();
+    return reinterpret_cast<long*>(static_cast<std::uintptr_t>(invokeNative(function, {}).integer));
 }
 } // namespace
 int main(int argc, char** argv) {
@@ -83,6 +76,18 @@ int main(int argc, char** argv) {
             require(*address(image->symbol("native_address")) == 63, "internal native data address");
             require(address(image->symbol("native_external_address")) == &factor,
                     "external native data address");
+            std::vector<NativeArgument> mixed;
+            for (unsigned n = 0; n < 10; ++n) {
+                mixed.push_back(NativeArgument::integer(n + 1));
+                mixed.push_back(n % 2 ? NativeArgument::floating(static_cast<float>(n) + 0.5f)
+                                      : NativeArgument::floating(static_cast<double>(n) + 0.25));
+            }
+            const auto sum = invokeNative(image->symbol("native_mixed"), mixed);
+            require(std::bit_cast<double>(sum.floating) == 433.75, "mixed register and stack argument lanes");
+            const NativeArgument single[]{NativeArgument::floating(1.5f), NativeArgument::floating(2.f)};
+            require(std::bit_cast<float>(static_cast<std::uint32_t>(
+                        invokeNative(image->symbol("native_single"), single).floating)) == 3.25f,
+                    "single precision native arguments and return");
             image->finalize();
             image->finalize();
             require(finalizations == before + 1, "native finalizers must run once");
