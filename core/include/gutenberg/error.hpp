@@ -22,7 +22,9 @@ enum class ErrorCode {
     network_dns,
     network_connect,
     network_tls,
-    malformed_json
+    malformed_json,
+    malformed_elf,
+    native_link
 };
 
 class Error final : public std::runtime_error {

@@ -1,5 +1,6 @@
 #include "gutenberg/android.hpp"
 #include "gutenberg/dex.hpp"
+#include "gutenberg/elf.hpp"
 #include "gutenberg/java.hpp"
 #include "gutenberg/jit.hpp"
 #include "gutenberg/layout.hpp"
@@ -18,6 +19,17 @@ int main(int argc, char** argv) {
             return 2;
         }
         const std::string command(argv[1]);
+        if (command == "inspect-elf") {
+            const ElfFile library(readFile(argv[2]));
+            std::cout << "soname: " << library.soname()
+                      << "\nmachine: " << (library.machine() == ElfMachine::aarch64 ? "aarch64" : "x86_64")
+                      << "\nimage bytes: " << library.imageSize() << "\nsymbols: " << library.symbols().size()
+                      << "\nrelocations: " << library.relocations().size() << "\ntls: " << library.hasTls()
+                      << '\n';
+            for (const auto& name : library.dependencies())
+                std::cout << "dependency: " << name << '\n';
+            return 0;
+        }
         if (command == "inspect-apk" || command == "run-apk") {
             auto package = std::make_shared<Package>(readFile(argv[2]));
             const auto& info = package->info();
