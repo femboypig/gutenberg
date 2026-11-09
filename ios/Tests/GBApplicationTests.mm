@@ -3,11 +3,114 @@
 #include "../Runtime/GBHttpClient.h"
 #import "../Runtime/GBRuntimeController.h"
 #import <XCTest/XCTest.h>
+#include <chrono>
 
 @interface GBApplicationTests : XCTestCase
 @end
 
 @implementation GBApplicationTests
+#if GUTENBERG_COMPATIBILITY_PROBE
+- (void)saveCompatibilityReport:(NSDictionary*)report window:(UIWindow*)window {
+    NSURL* documents = [NSFileManager.defaultManager URLsForDirectory:NSDocumentDirectory
+                                                            inDomains:NSUserDomainMask]
+                           .firstObject;
+    NSData* data =
+        [NSJSONSerialization dataWithJSONObject:report
+                                        options:NSJSONWritingPrettyPrinted | NSJSONWritingSortedKeys
+                                          error:nil];
+    [data writeToURL:[documents URLByAppendingPathComponent:@"probe-report.json"] atomically:YES];
+    XCTAttachment* json = [XCTAttachment attachmentWithData:data uniformTypeIdentifier:@"public.json"];
+    json.name = @"compatibility-report";
+    json.lifetime = XCTAttachmentLifetimeKeepAlways;
+    [self addAttachment:json];
+    if (window) {
+        UIGraphicsImageRenderer* renderer = [[UIGraphicsImageRenderer alloc] initWithBounds:window.bounds];
+        UIImage* image = [renderer imageWithActions:^(UIGraphicsImageRendererContext* context) {
+            [window drawViewHierarchyInRect:window.bounds afterScreenUpdates:YES];
+        }];
+        [UIImagePNGRepresentation(image)
+            writeToURL:[documents URLByAppendingPathComponent:@"probe-validation.png"]
+            atomically:YES];
+        XCTAttachment* screenshot = [XCTAttachment attachmentWithImage:image];
+        screenshot.lifetime = XCTAttachmentLifetimeKeepAlways;
+        screenshot.name = @"compatibility-startup";
+        [self addAttachment:screenshot];
+    }
+}
+- (void)testCompatibilityApkStartup {
+    NSBundle* bundle = [NSBundle bundleForClass:self.class];
+    NSURL* fixture = [bundle URLForResource:@"probe" withExtension:@"apk"];
+    XCTAssertNotNil(fixture);
+    NSData* metadata = [NSData dataWithContentsOfURL:[bundle URLForResource:@"probe" withExtension:@"json"]];
+    NSDictionary* source =
+        metadata ? [NSJSONSerialization JSONObjectWithData:metadata options:0 error:nil] : nil;
+    NSMutableDictionary* report = [NSMutableDictionary dictionaryWithDictionary:source ?: @{}];
+    NSURL* directory =
+        [NSURL fileURLWithPath:[NSTemporaryDirectory() stringByAppendingPathComponent:NSUUID.UUID.UUIDString]
+                   isDirectory:YES];
+    GBLibraryStore* store = [[GBLibraryStore alloc] initWithDirectory:directory];
+    XCTestExpectation* imported = [self expectationWithDescription:@"compatibility apk import"];
+    __block GBInstalledApp* app = nil;
+    __block NSError* failure = nil;
+    auto importStart = std::chrono::steady_clock::now();
+    [store importURL:fixture
+          completion:^(GBInstalledApp* result, NSError* error) {
+              app = result;
+              failure = error;
+              [imported fulfill];
+          }];
+    [self waitForExpectations:@[ imported ] timeout:90];
+    report[@"importSeconds"] =
+        @(std::chrono::duration<double>(std::chrono::steady_clock::now() - importStart).count());
+    if (!app) {
+        report[@"state"] = @"import-failed";
+        report[@"failure"] = failure.localizedDescription ?: @"Import did not finish before its deadline.";
+        [self saveCompatibilityReport:report window:nil];
+        XCTFail(@"compatibility import failed: %@", report[@"failure"]);
+        [NSFileManager.defaultManager removeItemAtURL:directory error:nil];
+        return;
+    }
+    report[@"package"] = app.packageName;
+    report[@"version"] = app.version;
+    report[@"classes"] = @(app.classCount);
+    report[@"nativeLibraries"] = @(app.nativeLibraryCount);
+    UIWindow* window = UIApplication.sharedApplication.delegate.window;
+    UIViewController* previous = window.rootViewController;
+    UINavigationController* navigation =
+        [[UINavigationController alloc] initWithRootViewController:[UIViewController new]];
+    window.rootViewController = navigation;
+    GBRuntimeController* runtime = [[GBRuntimeController alloc] initWithApp:app];
+    auto startupStart = std::chrono::steady_clock::now();
+    [navigation pushViewController:runtime animated:NO];
+    const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(120);
+    while (runtime.executionState == GBExecutionStateStarting && std::chrono::steady_clock::now() < deadline)
+        [NSRunLoop.currentRunLoop runUntilDate:[NSDate dateWithTimeIntervalSinceNow:0.02]];
+    report[@"startupSeconds"] =
+        @(std::chrono::duration<double>(std::chrono::steady_clock::now() - startupStart).count());
+    if (runtime.executionState == GBExecutionStateRunning) {
+        NSDate* observation = [NSDate dateWithTimeIntervalSinceNow:2];
+        while (runtime.executionState == GBExecutionStateRunning && observation.timeIntervalSinceNow > 0)
+            [NSRunLoop.currentRunLoop runUntilDate:[NSDate dateWithTimeIntervalSinceNow:0.02]];
+    }
+    UIView* content = [self findView:runtime.view
+                            matching:^BOOL(UIView* view) {
+                                return [view.accessibilityIdentifier hasPrefix:@"guest.view."];
+                            }];
+    const BOOL running = runtime.executionState == GBExecutionStateRunning && content != nil;
+    report[@"state"] = running                                            ? @"running"
+                       : runtime.executionState == GBExecutionStateFailed ? @"execution-failed"
+                                                                          : @"no-content";
+    report[@"failure"] =
+        runtime.executionFailure ?: (running ? @"" : @"The activity did not reach a visible content view.");
+    [self saveCompatibilityReport:report window:window];
+    if (runtime.presentedViewController)
+        [runtime dismissViewControllerAnimated:NO completion:nil];
+    [navigation popViewControllerAnimated:NO];
+    window.rootViewController = previous;
+    [NSFileManager.defaultManager removeItemAtURL:directory error:nil];
+    XCTAssertTrue(running, @"APK startup did not complete: %@", report[@"failure"]);
+}
+#endif
 - (NSData*)canvasPixels:(UIView*)view bluePixels:(NSUInteger*)bluePixels {
     const auto width = static_cast<size_t>(view.bounds.size.width);
     const auto height = static_cast<size_t>(view.bounds.size.height);

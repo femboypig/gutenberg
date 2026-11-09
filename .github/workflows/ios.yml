@@ -6,27 +6,45 @@ on:
     paths: ['core/**', 'ios/**', 'CMakeLists.txt', '.github/workflows/ios.yml']
   pull_request:
   workflow_dispatch:
+    inputs:
+      probe_url:
+        description: 'Optional APK URL for a simulator compatibility probe'
+        type: string
+        required: false
+      probe_sha256:
+        description: 'Optional SHA-256 of the requested APK build'
+        type: string
+        required: false
 
 permissions:
   contents: read
 
 concurrency:
-  group: ios-${{ github.ref }}
+  group: ios-${{ github.ref }}-${{ inputs.probe_url != '' && 'probe' || 'build' }}
   cancel-in-progress: true
 
 jobs:
   fixture:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
       - run: python3 tools/build_android_fixtures.py build/android
       - run: python3 tools/fetch_external_fixture.py build/android/randnum.apk
       - run: python3 tools/fetch_external_fixture.py build/android/snake.apk --sample snake
+      - name: fetch compatibility apk
+        if: inputs.probe_url != ''
+        env:
+          PROBE_URL: ${{ inputs.probe_url }}
+          PROBE_SHA256: ${{ inputs.probe_sha256 }}
+        run: python3 tools/fetch_apk.py "$PROBE_URL" build/android/probe.apk --sha256 "$PROBE_SHA256"
       - uses: actions/upload-artifact@v4
         with:
           name: ios-test-fixture
-          path: build/android/*.apk
+          path: |
+            build/android/*.apk
+            build/android/probe.json
+          compression-level: 0
           retention-days: 3
   application:
     needs: fixture
@@ -72,6 +90,7 @@ jobs:
           -DGUTENBERG_TEST_APK=${{ github.workspace }}/build-fixture/conformance.apk
           -DGUTENBERG_EXTERNAL_TEST_APK=${{ github.workspace }}/build-fixture/randnum.apk
           -DGUTENBERG_CANVAS_TEST_APK=${{ github.workspace }}/build-fixture/snake.apk
+          -DGUTENBERG_COMPATIBILITY_APK=${{ github.workspace }}/build-fixture/probe.apk
       - name: build simulator application
         run: xcodebuild -project build-simulator/Gutenberg.xcodeproj -scheme Gutenberg -configuration Debug -sdk iphonesimulator CODE_SIGNING_ALLOWED=NO build > build-simulator/simulator.log 2>&1
       - name: configure simulator test action
@@ -91,11 +110,20 @@ jobs:
           SERVER_PID=$!
           trap 'kill "$SERVER_PID"' EXIT
           python3 -c 'import time,urllib.request; time.sleep(0.3); assert urllib.request.urlopen("http://127.0.0.1:8765/message").read() == b"network message\n"'
+          set +e
           xcodebuild -project build-simulator/Gutenberg.xcodeproj -scheme GutenbergTests -configuration Debug -destination "platform=iOS Simulator,id=$DEVICE" -resultBundlePath build-simulator/ApplicationTests.xcresult CODE_SIGNING_ALLOWED=NO test > build-simulator/tests.log 2>&1
+          TEST_STATUS=$?
+          set -e
           CONTAINER=$(xcrun simctl get_app_container "$DEVICE" app.gutenberg.ios data)
-          cp "$CONTAINER/Documents/activity-validation.png" build-simulator/activity.png
-          cp "$CONTAINER/Documents/external-validation.png" build-simulator/external.png
-          cp "$CONTAINER/Documents/canvas-validation.png" build-simulator/canvas.png
+          for name in activity external canvas probe; do
+            if [ -f "$CONTAINER/Documents/$name-validation.png" ]; then
+              cp "$CONTAINER/Documents/$name-validation.png" "build-simulator/$name.png"
+            fi
+          done
+          if [ -f "$CONTAINER/Documents/probe-report.json" ]; then
+            cp "$CONTAINER/Documents/probe-report.json" build-simulator/probe-report.json
+          fi
+          exit "$TEST_STATUS"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -107,6 +135,8 @@ jobs:
             build-simulator/activity.png
             build-simulator/external.png
             build-simulator/canvas.png
+            build-simulator/probe.png
+            build-simulator/probe-report.json
             build-simulator/tests.log
             build-simulator/ApplicationTests.xcresult
             build-native/Testing/Temporary/LastTest.log

@@ -24,6 +24,9 @@ using namespace gutenberg;
     BOOL _navigationBarWasHidden;
     BOOL _interactivePopWasEnabled;
     __weak UINavigationController* _containerNavigation;
+    GBExecutionState _executionState;
+    NSString* _executionFailure;
+    std::atomic_bool _executionFailed;
 }
 - (instancetype)initWithApp:(GBInstalledApp*)app {
     if ((self = [super init])) {
@@ -32,8 +35,15 @@ using namespace gutenberg;
         _queue = dispatch_queue_create("app.gutenberg.runtime", DISPATCH_QUEUE_SERIAL);
         _pumpPending.store(false);
         _closing.store(false);
+        _executionFailed.store(false);
     }
     return self;
+}
+- (GBExecutionState)executionState {
+    return _executionState;
+}
+- (NSString*)executionFailure {
+    return _executionFailure;
 }
 - (void)viewDidLoad {
     [super viewDidLoad];
@@ -366,6 +376,12 @@ using namespace gutenberg;
                 self->_session = session;
             }
             session->launch();
+            const bool finished = session->scene().finished;
+            dispatch_async(dispatch_get_main_queue(), ^{
+                GBRuntimeController* owner = weakSelf;
+                if (owner && !owner->_closing.load() && !owner->_executionFailed.load())
+                    owner->_executionState = finished ? GBExecutionStateStopped : GBExecutionStateRunning;
+            });
         } catch (const GuestException& error) {
             [self reportException:error];
         } catch (const std::exception& error) {
@@ -381,7 +397,7 @@ using namespace gutenberg;
     });
 }
 - (void)performNow:(const std::function<void(AndroidSession&)>&)action {
-    if (_closing.load())
+    if (_closing.load() || _executionFailed.load())
         return;
     auto session = [self session];
     if (!session)
@@ -402,8 +418,12 @@ using namespace gutenberg;
 }
 - (void)reportFailure:(NSString*)message {
     dispatch_async(dispatch_get_main_queue(), ^{
-        if (self->_closing.load())
+        if (self->_closing.load() || self->_executionFailed.exchange(true))
             return;
+        self->_executionState = GBExecutionStateFailed;
+        self->_executionFailure = [message copy];
+        if (auto session = [self session])
+            session->cancel();
         [self appendLog:message];
         [self->_spinner stopAnimating];
         self->_status.hidden = YES;
@@ -416,7 +436,13 @@ using namespace gutenberg;
                                                 handler:^(__unused UIAlertAction* action) {
                                                     [self showLogs];
                                                 }]];
-        [alert addAction:[UIAlertAction actionWithTitle:@"Close" style:UIAlertActionStyleCancel handler:nil]];
+        __weak GBRuntimeController* weakSelf = self;
+        [alert addAction:[UIAlertAction actionWithTitle:@"Return to library"
+                                                  style:UIAlertActionStyleCancel
+                                                handler:^(__unused UIAlertAction* action) {
+                                                    [weakSelf.navigationController
+                                                        popViewControllerAnimated:YES];
+                                                }]];
         if (!self.presentedViewController)
             [self presentViewController:alert animated:YES completion:nil];
     });
@@ -499,6 +525,7 @@ using namespace gutenberg;
     _containerNavigation.interactivePopGestureRecognizer.enabled = _interactivePopWasEnabled;
     if (self.isMovingFromParentViewController || self.navigationController.isBeingDismissed) {
         _closing.store(true);
+        _executionState = GBExecutionStateStopped;
         [_timer invalidate];
         auto session = [self session];
         if (session)
