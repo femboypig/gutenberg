@@ -26,6 +26,10 @@ jobs:
         run: cmake --build build --parallel 2
       - name: unit tests
         run: ctest --test-dir build --output-on-failure
+      - name: execute native elf libraries
+        run: |
+          python3 tools/build_native_fixtures.py build/native
+          build/native_library_tests build/native
       - name: compile independent java program
         shell: bash
         run: |
@@ -61,6 +65,7 @@ jobs:
           path: |
             build/dex/
             build/android/conformance.apk
+            build/native/**/*.so
             build/*-output.txt
             build/Testing/Temporary/LastTest.log
           retention-days: 7
