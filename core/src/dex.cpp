@@ -48,6 +48,19 @@ std::u16string readString(const ByteView& data, std::size_t cursor) {
         throw Error(ErrorCode::malformed_dex, "missing dex string terminator");
     return chars;
 }
+Code codeHeader(const ByteView& data, std::uint32_t offset) {
+    data.require(offset, 16);
+    if (offset % 4)
+        throw Error(ErrorCode::malformed_dex, "misaligned method code");
+    Code code;
+    code.registers = data.u16(offset);
+    code.incoming = data.u16(offset + 2);
+    code.outgoing = data.u16(offset + 4);
+    if (code.incoming > code.registers)
+        throw Error(ErrorCode::malformed_dex, "method registers smaller than arguments");
+    data.require(std::size_t(offset) + 16, std::size_t(data.u32(offset + 12)) * 2);
+    return code;
+}
 } // namespace
 
 std::size_t MethodRef::argumentWords(bool instance) const {
@@ -57,41 +70,51 @@ std::size_t MethodRef::argumentWords(bool instance) const {
     return result;
 }
 
-DexFile::DexFile(Bytes bytes) : bytes_(std::move(bytes)) {
-    const ByteView data(bytes_, ErrorCode::malformed_dex);
+DexInfo inspectDex(std::span<const std::uint8_t> bytes) {
+    const ByteView data(bytes, ErrorCode::malformed_dex);
     data.require(0, 112);
     if (data.text(0, 4) != std::string("dex\n", 4) || data.u8(7))
         throw Error(ErrorCode::malformed_dex, "invalid dex magic");
-    version_ = data.text(4, 3);
-    if (version_ != "035" && version_ != "037" && version_ != "038" && version_ != "039" && version_ != "040")
-        throw Error(ErrorCode::unsupported, "unsupported dex version: " + version_);
+    const auto version = data.text(4, 3);
+    if (version != "035" && version != "037" && version != "038" && version != "039" && version != "040")
+        throw Error(ErrorCode::unsupported, "unsupported dex version: " + version);
     if (data.u32(32) != data.size() || data.u32(36) != 112 || data.u32(40) != 0x12345678)
         throw Error(ErrorCode::malformed_dex, "invalid dex header");
     if (data.size() > std::numeric_limits<uInt>::max())
         throw Error(ErrorCode::limit_exceeded, "dex too large");
     const auto checksum =
-        adler32(adler32(0, Z_NULL, 0), bytes_.data() + 12, static_cast<uInt>(bytes_.size() - 12));
+        adler32(adler32(0, Z_NULL, 0), bytes.data() + 12, static_cast<uInt>(bytes.size() - 12));
     if (checksum != data.u32(8))
         throw Error(ErrorCode::malformed_dex, "dex checksum mismatch");
-    auto table = [&](std::size_t at, std::size_t stride) {
+    for (const auto [at, stride] :
+         {std::pair{56U, 4U}, {64U, 4U}, {72U, 12U}, {80U, 8U}, {88U, 8U}, {96U, 32U}}) {
         const auto count = data.u32(at), offset = data.u32(at + 4);
         if (count > 1000000)
             throw Error(ErrorCode::limit_exceeded, "dex table limit exceeded");
         if (count && (offset < 112 || offset % 4))
             throw Error(ErrorCode::malformed_dex, "misaligned dex table");
         data.require(offset, std::size_t(count) * stride);
+    }
+    return {version, data.u32(96), data.u32(88)};
+}
+
+DexFile::DexFile(Bytes bytes) : bytes_(std::move(bytes)) {
+    version_ = inspectDex(bytes_).version;
+    const ByteView data(bytes_, ErrorCode::malformed_dex);
+    auto table = [&](std::size_t at) {
+        const auto count = data.u32(at), offset = data.u32(at + 4);
         return std::pair{count, offset};
     };
-    const auto [stringCount, stringOffset] = table(56, 4);
+    const auto [stringCount, stringOffset] = table(56);
     strings_.reserve(stringCount);
     for (std::uint32_t i = 0; i < stringCount; ++i) {
         strings16_.push_back(readString(data, data.u32(stringOffset + std::size_t(i) * 4)));
         strings_.push_back(utf8Replacing(strings16_.back()));
     }
-    const auto [typeCount, typeOffset] = table(64, 4);
+    const auto [typeCount, typeOffset] = table(64);
     for (std::uint32_t i = 0; i < typeCount; ++i)
         types_.push_back(string(data.u32(typeOffset + std::size_t(i) * 4)));
-    const auto [protoCount, protoOffset] = table(72, 12);
+    const auto [protoCount, protoOffset] = table(72);
     std::vector<MethodRef> prototypes;
     for (std::uint32_t i = 0; i < protoCount; ++i) {
         const auto at = protoOffset + std::size_t(i) * 12;
@@ -111,12 +134,12 @@ DexFile::DexFile(Bytes bytes) : bytes_(std::move(bytes)) {
         proto.descriptor += ")" + proto.returnType;
         prototypes.push_back(std::move(proto));
     }
-    const auto [fieldCount, fieldOffset] = table(80, 8);
+    const auto [fieldCount, fieldOffset] = table(80);
     for (std::uint32_t i = 0; i < fieldCount; ++i) {
         const auto at = fieldOffset + std::size_t(i) * 8;
         fields_.push_back({type(data.u16(at)), string(data.u32(at + 4)), type(data.u16(at + 2))});
     }
-    const auto [methodCount, methodOffset] = table(88, 8);
+    const auto [methodCount, methodOffset] = table(88);
     for (std::uint32_t i = 0; i < methodCount; ++i) {
         const auto at = methodOffset + std::size_t(i) * 8;
         auto proto = checked(prototypes, data.u16(at + 2), "prototype");
@@ -124,7 +147,7 @@ DexFile::DexFile(Bytes bytes) : bytes_(std::move(bytes)) {
         proto.name = string(data.u32(at + 4));
         methods_.push_back(std::move(proto));
     }
-    const auto [classCount, classOffset] = table(96, 32);
+    const auto [classCount, classOffset] = table(96);
     std::set<std::string> defined;
     for (std::uint32_t i = 0; i < classCount; ++i) {
         const auto at = classOffset + std::size_t(i) * 32;
@@ -176,10 +199,10 @@ DexFile::DexFile(Bytes bytes) : bytes_(std::move(bytes)) {
                     if (ref.owner != klass.type)
                         throw Error(ErrorCode::malformed_dex, "method owner mismatch");
                     const auto access = data.uleb(cursor), offset = data.uleb(cursor);
-                    DexMethod item{index, access, std::nullopt};
+                    DexMethod item{index, access, offset};
                     if (offset) {
-                        item.code = readCode(offset);
-                        if (item.code->incoming != ref.argumentWords(!(access & 8)))
+                        const auto header = codeHeader(data, offset);
+                        if (header.incoming != ref.argumentWords(!(access & 8)))
                             throw Error(ErrorCode::malformed_dex, "method argument count mismatch");
                     }
                     output.push_back(std::move(item));
@@ -216,20 +239,23 @@ const FieldRef& DexFile::field(std::uint32_t index) const {
     return checked(fields_, index, "field");
 }
 
+const Code* DexFile::code(const DexMethod& method) const {
+    if (!method.codeOffset)
+        return nullptr;
+    const std::lock_guard lock(codeMutex_);
+    if (const auto found = code_.find(method.codeOffset); found != code_.end())
+        return found->second.get();
+    auto code = std::make_unique<const Code>(readCode(method.codeOffset));
+    const auto result = code.get();
+    code_.emplace(method.codeOffset, std::move(code));
+    return result;
+}
+
 Code DexFile::readCode(std::uint32_t offset) const {
     const ByteView data(bytes_, ErrorCode::malformed_dex);
-    data.require(offset, 16);
-    if (offset % 4)
-        throw Error(ErrorCode::malformed_dex, "misaligned method code");
-    Code code;
-    code.registers = data.u16(offset);
-    code.incoming = data.u16(offset + 2);
-    code.outgoing = data.u16(offset + 4);
+    auto code = codeHeader(data, offset);
     const auto tries = data.u16(offset + 6);
     const auto count = data.u32(offset + 12);
-    if (code.incoming > code.registers)
-        throw Error(ErrorCode::malformed_dex, "method registers smaller than arguments");
-    data.require(std::size_t(offset) + 16, std::size_t(count) * 2);
     code.words.reserve(count);
     for (std::uint32_t i = 0; i < count; ++i)
         code.words.push_back(data.u16(offset + 16 + std::size_t(i) * 2));

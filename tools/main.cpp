@@ -21,11 +21,13 @@ int main(int argc, char** argv) {
         if (command == "inspect-apk" || command == "run-apk") {
             auto package = std::make_shared<Package>(readFile(argv[2]));
             const auto& info = package->info();
-            std::cout << "package: " << info.id << "\nlabel: " << info.label
-                      << "\nlauncher: " << info.launcher << "\ndex files: " << package->dexFiles().size()
-                      << '\n';
-            if (command == "inspect-apk")
+            std::cout << "package: " << info.id << "\nlabel: " << info.label << "\nversion: " << info.version
+                      << "\nlauncher: " << info.launcher << "\ndex files: " << package->dexCount() << '\n';
+            if (command == "inspect-apk") {
+                const auto& code = package->codeInfo();
+                std::cout << "classes: " << code.classes << "\nmethods: " << code.methods << '\n';
                 return 0;
+            }
             AndroidHost host;
             host.log = [](std::string_view message) { std::cout << "log: " << message << '\n'; };
             host.toast = [](std::string_view message) { std::cout << "toast: " << message << '\n'; };
@@ -114,7 +116,7 @@ int main(int argc, char** argv) {
                 for (const auto* list : {&klass.directMethods, &klass.virtualMethods})
                     for (const auto& method : *list)
                         std::cout << "  " << dex->method(method.index).key()
-                                  << (method.code ? "" : " [external]") << '\n';
+                                  << (method.codeOffset ? "" : " [external]") << '\n';
             }
             return 0;
         }

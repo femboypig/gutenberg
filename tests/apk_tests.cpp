@@ -36,6 +36,15 @@ int main(int argc, char** argv) {
         require(package->info().label == "Runtime Conformance", "resource label");
         require(package->info().launcher == "Lorg/gutenberg/conformance/MainActivity;", "launcher class");
         require(package->info().minimumSdk == 26, "minimum sdk");
+        const auto& metadata = package->codeInfo();
+        std::size_t classes = 0, methods = 0;
+        for (const auto& dex : package->dexFiles()) {
+            classes += dex->classes().size();
+            methods += dex->methods().size();
+        }
+        require(metadata.files == package->dexCount() && metadata.files == package->dexFiles().size(),
+                "dex file metadata");
+        require(metadata.classes == classes && metadata.methods == methods, "dex table metadata");
         std::map<std::string, std::string> preferences;
         unsigned presentations = 0;
         AndroidHost host;

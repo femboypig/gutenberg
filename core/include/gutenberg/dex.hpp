@@ -1,9 +1,18 @@
 #pragma once
 
 #include "bytes.hpp"
+#include <memory>
+#include <mutex>
 #include <optional>
+#include <unordered_map>
 
 namespace gutenberg {
+
+struct DexInfo {
+    std::string version;
+    std::uint32_t classes = 0, methods = 0;
+};
+[[nodiscard]] DexInfo inspectDex(std::span<const std::uint8_t> bytes);
 
 struct MethodRef {
     std::string owner;
@@ -51,7 +60,7 @@ struct Code {
 struct DexMethod {
     std::uint32_t index;
     std::uint32_t access;
-    std::optional<Code> code;
+    std::uint32_t codeOffset = 0;
 };
 struct DexField {
     std::uint32_t index;
@@ -77,6 +86,7 @@ class DexFile {
     [[nodiscard]] const std::string& type(std::uint32_t index) const;
     [[nodiscard]] const MethodRef& method(std::uint32_t index) const;
     [[nodiscard]] const FieldRef& field(std::uint32_t index) const;
+    [[nodiscard]] const Code* code(const DexMethod& method) const;
     [[nodiscard]] const std::vector<DexClass>& classes() const noexcept {
         return classes_;
     }
@@ -101,6 +111,8 @@ class DexFile {
     std::vector<MethodRef> methods_;
     std::vector<FieldRef> fields_;
     std::vector<DexClass> classes_;
+    mutable std::mutex codeMutex_;
+    mutable std::unordered_map<std::uint32_t, std::unique_ptr<const Code>> code_;
 };
 
 } // namespace gutenberg

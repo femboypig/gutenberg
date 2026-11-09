@@ -105,8 +105,33 @@ Package::Package(Bytes bytes) : archive_(std::move(bytes)) {
     std::sort(dexEntries.begin(), dexEntries.end());
     for (const auto& [number, name] : dexEntries) {
         (void)number;
-        dexFiles_.push_back(std::make_shared<DexFile>(archive_.read(name)));
+        dexEntries_.push_back(name);
     }
+}
+
+const PackageCodeInfo& Package::codeInfo() const {
+    std::call_once(codeInfoOnce_, [this] {
+        PackageCodeInfo result;
+        result.files = dexEntries_.size();
+        for (const auto& entry : dexEntries_) {
+            const auto info = inspectDex(archive_.read(entry));
+            result.classes += info.classes;
+            result.methods += info.methods;
+        }
+        codeInfo_ = result;
+    });
+    return codeInfo_;
+}
+
+const std::vector<std::shared_ptr<const DexFile>>& Package::dexFiles() const {
+    std::call_once(dexFilesOnce_, [this] {
+        std::vector<std::shared_ptr<const DexFile>> result;
+        result.reserve(dexEntries_.size());
+        for (const auto& entry : dexEntries_)
+            result.push_back(std::make_shared<DexFile>(archive_.read(entry)));
+        dexFiles_ = std::move(result);
+    });
+    return dexFiles_;
 }
 
 XmlNode Package::xml(std::string_view path) const {

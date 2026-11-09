@@ -97,7 +97,7 @@
                 try {
                     gutenberg::Package package(gutenberg::readFile(apk.fileSystemRepresentation));
                     const auto& info = package.info();
-                    if (package.dexFiles().empty())
+                    if (!package.dexCount())
                         throw gutenberg::Error(gutenberg::ErrorCode::unsupported,
                                                "This package contains no DEX code. Split APK sets must be "
                                                "combined before importing.");
@@ -107,9 +107,7 @@
                                                       encoding:NSUTF8StringEncoding]
                                    ?: @"";
                     };
-                    NSUInteger count = 0;
-                    for (const auto& dex : package.dexFiles())
-                        count += dex->classes().size();
+                    const auto count = package.codeInfo().classes;
                     NSMutableArray* permissions = [NSMutableArray array];
                     for (const auto& permission : info.permissions)
                         [permissions addObject:string(permission)];

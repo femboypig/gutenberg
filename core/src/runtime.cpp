@@ -202,15 +202,16 @@ Value Runtime::invoke(const MethodRef& ref, Arguments arguments, InvokeKind kind
                         continue;
                     if (bool(method.access & 8) != (kind == InvokeKind::static_))
                         raise("Ljava/lang/IncompatibleClassChangeError;", key);
-                    if (!method.code)
+                    const auto* code = info.dex->code(method);
+                    if (!code)
                         raise(method.access & 0x100 ? "Ljava/lang/UnsatisfiedLinkError;"
                                                     : "Ljava/lang/AbstractMethodError;",
                               key);
                     try {
                         if (jitEnabled_)
-                            if (auto result = jit_->execute(*this, *method.code, arguments))
+                            if (auto result = jit_->execute(*this, *code, arguments))
                                 return *result;
-                        return execute(*info.dex, *method.code, arguments, key);
+                        return execute(*info.dex, *code, arguments, key);
                     } catch (GuestException& error) {
                         error.frames.push_back(key);
                         throw;

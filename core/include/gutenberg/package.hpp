@@ -3,6 +3,7 @@
 #include "archive.hpp"
 #include "dex.hpp"
 #include "resources.hpp"
+#include <mutex>
 
 namespace gutenberg {
 
@@ -29,6 +30,10 @@ struct PackageInfo {
     bool allowsCleartext = true;
 };
 
+struct PackageCodeInfo {
+    std::size_t files = 0, classes = 0, methods = 0;
+};
+
 class Package {
   public:
     explicit Package(Bytes bytes);
@@ -41,9 +46,11 @@ class Package {
     [[nodiscard]] const Archive& archive() const noexcept {
         return archive_;
     }
-    [[nodiscard]] const std::vector<std::shared_ptr<const DexFile>>& dexFiles() const noexcept {
-        return dexFiles_;
+    [[nodiscard]] std::size_t dexCount() const noexcept {
+        return dexEntries_.size();
     }
+    [[nodiscard]] const PackageCodeInfo& codeInfo() const;
+    [[nodiscard]] const std::vector<std::shared_ptr<const DexFile>>& dexFiles() const;
     [[nodiscard]] XmlNode xml(std::string_view path) const;
     [[nodiscard]] Bytes asset(std::string_view path) const;
     [[nodiscard]] std::string resourceText(const ResourceValue& value) const;
@@ -52,7 +59,10 @@ class Package {
     Archive archive_;
     Resources resources_;
     PackageInfo info_;
-    std::vector<std::shared_ptr<const DexFile>> dexFiles_;
+    std::vector<std::string> dexEntries_;
+    mutable std::once_flag codeInfoOnce_, dexFilesOnce_;
+    mutable PackageCodeInfo codeInfo_;
+    mutable std::vector<std::shared_ptr<const DexFile>> dexFiles_;
 };
 
 [[nodiscard]] std::string classDescriptor(std::string name, std::string_view package);
