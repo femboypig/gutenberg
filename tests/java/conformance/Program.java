@@ -68,6 +68,14 @@ public final class Program {
         require(text.substring(6, 10).equals("5050"), "substring");
         require("мир 😀".length() == 6, "unicode");
         require(Integer.valueOf(42).intValue() == 42, "boxing");
+        ThreadLocal<String> local = new ThreadLocal<String>() {
+            @Override protected String initialValue() { return "initial"; }
+        };
+        require("initial".equals(local.get()), "thread local initial value");
+        local.set(null);
+        require(local.get() == null, "thread local null value");
+        local.remove();
+        require("initial".equals(local.get()), "thread local remove");
         List<String> list = new ArrayList<String>();
         list.add("one"); list.add("two"); list.add(1, "middle");
         require(list.get(1).equals("middle") && list.size() == 3, "list operations");

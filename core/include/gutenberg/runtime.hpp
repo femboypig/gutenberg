@@ -13,6 +13,7 @@ namespace gutenberg {
 
 class Runtime;
 class JitEngine;
+struct GuestThreadIdentity {};
 using Arguments = std::span<const Value>;
 using NativeMethod = std::function<Value(Runtime&, Arguments)>;
 enum class InvokeKind { direct, virtual_, static_, super, interface_ };
@@ -44,10 +45,27 @@ struct MethodLocation {
 
 class Runtime {
   public:
+    class ThreadScope {
+      public:
+        ThreadScope(const ThreadScope&) = delete;
+        ThreadScope& operator=(const ThreadScope&) = delete;
+        ThreadScope(ThreadScope&& other) noexcept;
+        ~ThreadScope();
+
+      private:
+        friend class Runtime;
+        ThreadScope(Runtime& runtime, std::shared_ptr<GuestThreadIdentity> previous);
+        Runtime* runtime_;
+        std::shared_ptr<GuestThreadIdentity> previous_;
+    };
     explicit Runtime(RuntimeLimits limits = {});
     ~Runtime();
     Runtime(const Runtime&) = delete;
     Runtime& operator=(const Runtime&) = delete;
+    [[nodiscard]] const std::shared_ptr<GuestThreadIdentity>& threadIdentity() const noexcept {
+        return threadIdentity_;
+    }
+    [[nodiscard]] ThreadScope enterThread(std::shared_ptr<GuestThreadIdentity> thread);
 
     void load(std::shared_ptr<const DexFile> dex);
     void defineClass(std::string type, std::string super = "Ljava/lang/Object;",
@@ -139,6 +157,7 @@ class Runtime {
     std::size_t arrayElements_ = 0;
     std::unique_ptr<JitEngine> jit_;
     bool jitEnabled_ = true;
+    std::shared_ptr<GuestThreadIdentity> threadIdentity_ = std::make_shared<GuestThreadIdentity>();
 };
 
 [[nodiscard]] MethodRef methodRef(std::string owner, std::string name, std::string descriptor);

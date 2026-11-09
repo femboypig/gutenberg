@@ -131,6 +131,9 @@ void installJavaRuntime(Runtime& vm, JavaServices services) {
                                 ? r.array(copy.type, static_cast<std::int32_t>(copy.elements.size()))
                                 : r.allocate(copy.type);
         r.object(result) = copy;
+        if (copy.native)
+            if (auto state = copy.native->cloneState())
+                r.object(result).native = std::move(state);
         return result;
     });
     const std::string str = "Ljava/lang/String;";
@@ -415,6 +418,7 @@ void installJavaRuntime(Runtime& vm, JavaServices services) {
     installJavaCollections(vm);
     installJavaNumbers(vm);
     installJavaReflection(vm);
+    installJavaThreadLocals(vm);
     installJavaJson(vm);
     installJavaIo(vm, services);
     installJavaNetwork(vm, std::move(services));

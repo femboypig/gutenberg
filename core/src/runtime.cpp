@@ -2,6 +2,7 @@
 #include "gutenberg/jit.hpp"
 #include <algorithm>
 #include <set>
+#include <utility>
 
 namespace gutenberg {
 
@@ -41,6 +42,20 @@ MethodRef methodRef(std::string owner, std::string name, std::string descriptor)
 
 Runtime::Runtime(RuntimeLimits limits) : limits_(limits), jit_(std::make_unique<JitEngine>()) {}
 Runtime::~Runtime() = default;
+Runtime::ThreadScope::ThreadScope(Runtime& runtime, std::shared_ptr<GuestThreadIdentity> previous)
+    : runtime_(&runtime), previous_(std::move(previous)) {}
+Runtime::ThreadScope::ThreadScope(ThreadScope&& other) noexcept
+    : runtime_(std::exchange(other.runtime_, nullptr)), previous_(std::move(other.previous_)) {}
+Runtime::ThreadScope::~ThreadScope() {
+    if (runtime_)
+        runtime_->threadIdentity_ = std::move(previous_);
+}
+Runtime::ThreadScope Runtime::enterThread(std::shared_ptr<GuestThreadIdentity> thread) {
+    if (!thread || depth_)
+        throw Error(ErrorCode::verification, "thread context changes require a quiescent runtime");
+    auto previous = std::exchange(threadIdentity_, std::move(thread));
+    return ThreadScope(*this, std::move(previous));
+}
 JitEngine& Runtime::jit() noexcept {
     return *jit_;
 }

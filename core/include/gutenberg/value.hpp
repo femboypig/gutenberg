@@ -51,6 +51,9 @@ struct Value {
 struct NativeObject {
     virtual ~NativeObject() = default;
     virtual void visitReferences(const std::function<void(Value)>&) const {}
+    [[nodiscard]] virtual std::shared_ptr<NativeObject> cloneState() const {
+        return {};
+    }
 };
 
 struct Object {
